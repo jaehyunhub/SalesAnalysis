@@ -4,7 +4,9 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import axios from "axios";
 import { useAuthStore } from "@/store/authStore";
+import { authApi } from "@/lib/api";
 import type { RegisterRequest } from "@/types";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 
@@ -25,18 +27,15 @@ export default function RegisterPage() {
     setError(null);
 
     try {
-      // Mock register
-      await new Promise((resolve) => setTimeout(resolve, 800));
-
-      login("mock-jwt-token-12345", {
-        id: 1,
-        email: data.email,
-        store_name: data.store_name,
-      });
-
+      const response = await authApi.register(data);
+      login(response.data.access_token, response.data.user);
       router.push("/dashboard");
-    } catch {
-      setError("회원가입 중 오류가 발생했습니다. 다시 시도해주세요.");
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        setError(err.response?.data?.detail || "회원가입 중 오류가 발생했습니다. 다시 시도해주세요.");
+      } else {
+        setError("회원가입 중 오류가 발생했습니다. 다시 시도해주세요.");
+      }
     } finally {
       setLoading(false);
     }

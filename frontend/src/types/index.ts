@@ -53,7 +53,8 @@ export interface HourlySales {
 export interface CategorySales {
   category: string;
   total_amount: number;
-  percentage: number;
+  percentage?: number;
+  ratio?: number;
 }
 
 export interface TopProduct {
@@ -129,6 +130,7 @@ export interface AuthResponse {
 export interface SalesQuery {
   start_date?: string;
   end_date?: string;
+  category?: string;
   page?: number;
   size?: number;
 }

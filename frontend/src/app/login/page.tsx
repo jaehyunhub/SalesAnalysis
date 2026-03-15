@@ -4,7 +4,9 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import axios from "axios";
 import { useAuthStore } from "@/store/authStore";
+import { authApi } from "@/lib/api";
 import type { LoginRequest } from "@/types";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 
@@ -25,19 +27,15 @@ export default function LoginPage() {
     setError(null);
 
     try {
-      // Mock login - simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 800));
-
-      // Mock success
-      login("mock-jwt-token-12345", {
-        id: 1,
-        email: data.email,
-        store_name: "CU 강남점",
-      });
-
+      const response = await authApi.login(data);
+      login(response.data.access_token, response.data.user);
       router.push("/dashboard");
-    } catch {
-      setError("이메일 또는 비밀번호가 올바르지 않습니다.");
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        setError(err.response?.data?.detail || "이메일 또는 비밀번호가 올바르지 않습니다.");
+      } else {
+        setError("이메일 또는 비밀번호가 올바르지 않습니다.");
+      }
     } finally {
       setLoading(false);
     }

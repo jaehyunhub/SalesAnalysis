@@ -393,6 +393,101 @@ def process_screenshot(image_bytes) -> dict:
 
 ---
 
+## 병렬 팀 구성 (Team Agents)
+
+### 현재 완료 상태 (2026-03-15)
+
+#### Wave 0~2 완료 — 다음 세션은 Phase 4부터 시작
+
+| Wave / Phase | 작업 | 상태 |
+|---|---|---|
+| Wave 0 | Docker Compose, .env, DB 모델 6개 (user/product/sales/upload/event/weather), Alembic | ✅ 완료 |
+| Wave 1 | Auth/Sales/Upload/Analysis/Events 라우터 + summary 엔드포인트 | ✅ 완료 |
+| Wave 2 | 프론트엔드 전체 API 연동 (login/register/dashboard/sales/upload) | ✅ 완료 |
+| Phase 4 | 기상청 API, 공휴일 API, 이벤트 관리 UI, /analysis 페이지 연동 | ⬜ **다음 작업** |
+| Phase 5 | OCR 파이프라인 (POS 스크린샷) | ⬜ 미착수 |
+| Phase 6 | 수요 예측, 폐기 알림, 행사 이익율 고도화 | ⬜ 미착수 |
+
+#### 완료된 파일 목록 (이번 세션)
+**백엔드 신규/수정:**
+- `models/event.py` — Event 모델 (user_id FK, event_date, event_type, description)
+- `models/weather.py` — WeatherData 모델 (date UNIQUE, avg_temp, condition, precipitation)
+- `models/__init__.py` — Event, WeatherData import 추가
+- `models/user.py` — events relationship 추가
+- `schemas/event.py` — EventCreate, EventResponse
+- `schemas/analysis.py` — SummaryResponse 등 6개 분석 스키마
+- `routers/events.py` — GET/POST/DELETE `/api/events`
+- `services/analysis.py` — get_summary() 추가
+- `routers/analysis.py` — GET `/api/analysis/summary` 추가
+- `main.py` — events 라우터 등록
+
+**프론트엔드 수정 (mock → 실제 API):**
+- `lib/api.ts` — 전체 재작성 (authApi / salesApi / analysisApi / uploadApi)
+- `types/index.ts` — SalesQuery.category, CategorySales.ratio 필드 추가
+- `app/login/page.tsx` — authApi.login() 연동
+- `app/register/page.tsx` — authApi.register() 연동
+- `components/dashboard/SummaryCards.tsx` — analysisApi.getSummary() 연동
+- `components/dashboard/SalesChart.tsx` — analysisApi.getDaily/getMonthly() 연동
+- `components/dashboard/CategoryChart.tsx` — analysisApi.getCategory() 연동
+- `components/dashboard/TopProducts.tsx` — analysisApi.getTopProducts() 연동
+- `components/upload/FileUploader.tsx` — uploadApi.uploadFile() 연동
+- `app/upload/page.tsx` — uploadApi.getHistory() 연동, 업로드 후 자동 갱신
+- `app/sales/page.tsx` — salesApi.getRecords() 서버사이드 페이지네이션
+
+**인프라:**
+- `.mcp.json` — PostgreSQL / Redis / Docker MCP 서버 설정
+
+#### Phase 4 시작 시 작업 순서
+```
+1. backend/app/services/weather.py   — 기상청 단기예보 API 연동
+2. backend/app/routers/weather.py    — GET /api/weather
+3. backend/app/routers/analysis.py   — GET /api/analysis/hourly 엔드포인트 추가
+4. frontend/src/app/settings/page.tsx — 이벤트 CRUD → /api/events 연동
+5. frontend/src/app/analysis/page.tsx — mock 제거, 실제 API + 날씨/이벤트 병합
+```
+
+### Wave 0: Foundation (선행 순차)
+
+| 팀 | 담당 | 이유 |
+|---|---|---|
+| **Foundation** | Phase 1 (Docker Compose, .env) + Phase 2-1 (전체 DB 모델) + Phase 2-2 (Alembic 마이그레이션) | 모든 팀이 공유하는 DB 스키마가 먼저 확정되어야 함 |
+
+### Wave 1: 백엔드 API (병렬 - 3개 팀)
+
+모델/마이그레이션 완료 후, 라우터+서비스+스키마는 독립적이므로 동시 작업 가능:
+
+| 팀 | 담당 | 주요 파일 |
+|---|---|---|
+| **Auth** | Phase 2-3 인증 API | `routers/auth.py`, `services/auth.py`, `schemas/auth.py` |
+| **Data** | Phase 2-4 업로드 + Phase 2-5 매출 조회 | `routers/upload.py`, `routers/sales.py`, `services/upload.py`, `schemas/sales.py` |
+| **Analytics** | Phase 2-6 분석 API + Redis 캐싱 | `routers/analysis.py`, `services/analysis.py`, `schemas/analysis.py` |
+
+### Wave 2: 프론트엔드 연동 (병렬 - 3개 팀)
+
+백엔드 API 완성 후, 각 페이지의 mock → API 교체는 독립적:
+
+| 팀 | 담당 | 주요 파일 |
+|---|---|---|
+| **FE-Core** | API 클라이언트 설정 + authStore + 로그인/회원가입 연동 | `lib/api.ts`, `store/authStore.ts`, `login/`, `register/` |
+| **FE-Dashboard** | 대시보드 + 매출조회 페이지 API 연동 | `dashboard/page.tsx`, `sales/page.tsx` |
+| **FE-Analysis** | 분석 + 업로드 + 프로모션 페이지 API 연동 | `analysis/page.tsx`, `upload/page.tsx`, `promotion/page.tsx` |
+
+### 의존성 흐름
+
+```
+Wave 0: [Foundation] ─────────────────────────────
+                │
+Wave 1:         ├── [Auth]      ─┐
+                ├── [Data]      ─┼── 병렬
+                └── [Analytics] ─┘
+                         │
+Wave 2:         ├── [FE-Core]      ─┐
+                ├── [FE-Dashboard] ─┼── 병렬
+                └── [FE-Analysis]  ─┘
+```
+
+---
+
 ## 핵심 파일 경로 요약
 
 ```

@@ -1,97 +1,82 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
   CurrencyDollarIcon,
   ArrowTrendingUpIcon,
   CalendarDaysIcon,
   CubeIcon,
 } from "@heroicons/react/24/outline";
+import { analysisApi } from "@/lib/api";
 import type { DashboardPeriod } from "@/types";
 
 type ChangeType = "positive" | "negative" | "neutral";
 
-interface CardData {
-  title: string;
-  value: string;
-  change: string;
-  changeType: ChangeType;
-  changeLabel: string;
-  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
-  color: string;
+interface SummaryData {
+  today_amount: number;
+  yesterday_amount: number;
+  this_month_amount: number;
+  total_products: number;
 }
 
-// TODO: 백엔드 연동 시 GET /api/analysis/summary?period=daily|weekly|monthly 로 교체
-const PERIOD_CARDS: Record<DashboardPeriod, CardData[]> = {
-  daily: [
-    {
-      title: "오늘 매출", value: "1,284,500원",
-      change: "+12.5%", changeType: "positive", changeLabel: "전일 대비",
-      icon: CurrencyDollarIcon, color: "bg-blue-500",
-    },
-    {
-      title: "오늘 거래 건수", value: "412건",
-      change: "+8.0%", changeType: "positive", changeLabel: "전일 대비",
-      icon: ArrowTrendingUpIcon, color: "bg-green-500",
-    },
-    {
-      title: "주 누적 매출", value: "5,840,000원",
-      change: "+5.2%", changeType: "positive", changeLabel: "전주 대비",
-      icon: CalendarDaysIcon, color: "bg-purple-500",
-    },
-    {
-      title: "폐기 위험 상품", value: "12개",
-      change: "주의", changeType: "negative", changeLabel: "유통기한 임박",
-      icon: CubeIcon, color: "bg-orange-500",
-    },
-  ],
-  weekly: [
-    {
-      title: "이번 주 매출", value: "7,500,000원",
-      change: "+8.3%", changeType: "positive", changeLabel: "전주 대비",
-      icon: CurrencyDollarIcon, color: "bg-blue-500",
-    },
-    {
-      title: "주 거래 건수", value: "1,900건",
-      change: "+6.1%", changeType: "positive", changeLabel: "전주 대비",
-      icon: ArrowTrendingUpIcon, color: "bg-green-500",
-    },
-    {
-      title: "월 누적 매출", value: "28,456,000원",
-      change: "+8.2%", changeType: "positive", changeLabel: "전월 대비",
-      icon: CalendarDaysIcon, color: "bg-purple-500",
-    },
-    {
-      title: "이번 주 신상품", value: "5개",
-      change: "+2", changeType: "neutral", changeLabel: "전주 대비",
-      icon: CubeIcon, color: "bg-orange-500",
-    },
-  ],
-  monthly: [
-    {
-      title: "이번 달 매출", value: "28,456,000원",
-      change: "+7.4%", changeType: "positive", changeLabel: "전월 대비",
-      icon: CurrencyDollarIcon, color: "bg-blue-500",
-    },
-    {
-      title: "월 거래 건수", value: "6,900건",
-      change: "+4.2%", changeType: "positive", changeLabel: "전월 대비",
-      icon: ArrowTrendingUpIcon, color: "bg-green-500",
-    },
-    {
-      title: "년 누적 매출", value: "83,841,000원",
-      change: "+5.8%", changeType: "positive", changeLabel: "전년 동기 대비",
-      icon: CalendarDaysIcon, color: "bg-purple-500",
-    },
-    {
-      title: "총 상품 수", value: "1,247개",
-      change: "+23", changeType: "neutral", changeLabel: "전월 대비",
-      icon: CubeIcon, color: "bg-orange-500",
-    },
-  ],
-};
+function calcChange(current: number, previous: number): { text: string; type: ChangeType } {
+  if (previous === 0) return { text: "-", type: "neutral" };
+  const pct = ((current - previous) / previous) * 100;
+  const type: ChangeType = pct > 0 ? "positive" : pct < 0 ? "negative" : "neutral";
+  return { text: `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%`, type };
+}
 
 export default function SummaryCards({ period }: { period: DashboardPeriod }) {
-  const cards = PERIOD_CARDS[period];
+  const [data, setData] = useState<SummaryData | null>(null);
+
+  useEffect(() => {
+    analysisApi.getSummary()
+      .then((res) => setData(res.data))
+      .catch(() => {/* 에러 무시, 빈 상태 유지 */});
+  }, []);
+
+  const todayChange = data ? calcChange(data.today_amount, data.yesterday_amount) : { text: "-", type: "neutral" as ChangeType };
+
+  const cards = [
+    {
+      title: period === "daily" ? "오늘 매출" : period === "weekly" ? "이번 주 매출" : "이번 달 매출",
+      value: data
+        ? `${(period === "monthly" ? data.this_month_amount : data.today_amount).toLocaleString()}원`
+        : "로딩 중...",
+      change: period === "daily" ? todayChange.text : "-",
+      changeType: period === "daily" ? todayChange.type : ("neutral" as ChangeType),
+      changeLabel: period === "daily" ? "전일 대비" : period === "weekly" ? "전주 대비" : "전월 대비",
+      icon: CurrencyDollarIcon,
+      color: "bg-blue-500",
+    },
+    {
+      title: "이번 달 누적",
+      value: data ? `${data.this_month_amount.toLocaleString()}원` : "로딩 중...",
+      change: "-",
+      changeType: "neutral" as ChangeType,
+      changeLabel: "당월 합계",
+      icon: ArrowTrendingUpIcon,
+      color: "bg-green-500",
+    },
+    {
+      title: "전일 매출",
+      value: data ? `${data.yesterday_amount.toLocaleString()}원` : "로딩 중...",
+      change: "-",
+      changeType: "neutral" as ChangeType,
+      changeLabel: "어제 기준",
+      icon: CalendarDaysIcon,
+      color: "bg-purple-500",
+    },
+    {
+      title: "총 상품 수",
+      value: data ? `${data.total_products.toLocaleString()}개` : "로딩 중...",
+      change: "-",
+      changeType: "neutral" as ChangeType,
+      changeLabel: "누적 상품",
+      icon: CubeIcon,
+      color: "bg-orange-500",
+    },
+  ];
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">

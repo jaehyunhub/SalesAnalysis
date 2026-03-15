@@ -2,13 +2,15 @@
 
 import { useState, useRef, useCallback } from "react";
 import { ArrowUpTrayIcon, DocumentIcon, XMarkIcon } from "@heroicons/react/24/outline";
+import axios from "axios";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
+import { uploadApi } from "@/lib/api";
 
 interface FileUploaderProps {
-  onUpload: (file: File) => Promise<void>;
+  onUploadSuccess: () => void;
 }
 
-export default function FileUploader({ onUpload }: FileUploaderProps) {
+export default function FileUploader({ onUploadSuccess }: FileUploaderProps) {
   const [dragActive, setDragActive] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -76,25 +78,18 @@ export default function FileUploader({ onUpload }: FileUploaderProps) {
     setError(null);
 
     try {
-      // Simulate upload progress for mock
-      const interval = setInterval(() => {
-        setProgress((prev) => {
-          if (prev >= 90) {
-            clearInterval(interval);
-            return 90;
-          }
-          return prev + 10;
-        });
-      }, 200);
-
-      await onUpload(selectedFile);
-
-      clearInterval(interval);
+      await uploadApi.uploadFile(selectedFile, (percent) => setProgress(percent));
       setProgress(100);
       setSuccess(true);
       setSelectedFile(null);
-    } catch {
-      setError("업로드 중 오류가 발생했습니다. 다시 시도해주세요.");
+      if (inputRef.current) inputRef.current.value = "";
+      onUploadSuccess();
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        setError(err.response?.data?.detail || "업로드 중 오류가 발생했습니다. 다시 시도해주세요.");
+      } else {
+        setError("업로드 중 오류가 발생했습니다. 다시 시도해주세요.");
+      }
     } finally {
       setUploading(false);
     }

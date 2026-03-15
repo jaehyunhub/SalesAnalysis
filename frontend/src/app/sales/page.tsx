@@ -1,78 +1,72 @@
 "use client";
 
-import { useState } from "react";
-import type { SalesRecord } from "@/types";
+import { useState, useEffect, useCallback } from "react";
+import { salesApi } from "@/lib/api";
 
-const PRODUCT_META: Record<string, { category: string; price: number }> = {
-  "코카콜라 500ml":      { category: "음료",          price: 1800 },
-  "삼각김밥 참치마요":   { category: "도시락/간편식", price: 1200 },
-  "신라면 컵":           { category: "식품",          price: 1500 },
-  "바나나맛 우유":       { category: "유제품",        price: 1500 },
-  "CU 도시락 불고기":    { category: "도시락/간편식", price: 4500 },
-  "포카칩 오리지널":     { category: "과자/스낵",     price: 2000 },
-  "아메리카노 ICE":      { category: "음료",          price: 1500 },
-  "컵라면 육개장":       { category: "식품",          price: 1200 },
-  "빼빼로 초코":         { category: "과자/스낵",     price: 1500 },
-  "삼다수 2L":           { category: "음료",          price: 1200 },
-};
+// 백엔드 응답 타입 (product 중첩 구조)
+interface SalesRow {
+  id: number;
+  sale_date: string;
+  sale_time: string | null;
+  quantity: number;
+  total_amount: number;
+  product: { name: string; category: string } | null;
+}
 
-const productNames = Object.keys(PRODUCT_META);
-
-// TODO: 백엔드 연동 시 GET /api/sales 로 교체
-const mockSalesRecords: SalesRecord[] = Array.from({ length: 50 }, (_, i) => {
-  const date = new Date("2026-03-15");
-  date.setDate(date.getDate() - Math.floor(i / 5));
-  const name = productNames[i % productNames.length];
-  const meta = PRODUCT_META[name];
-  const qty = Math.floor((i % 5) + 1);
-  return {
-    id: i + 1,
-    product_name: name,
-    category: meta.category,
-    sale_date: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`,
-    sale_time: `${String(8 + (i * 3) % 14).padStart(2, "0")}:${String((i * 7) % 60).padStart(2, "0")}`,
-    quantity: qty,
-    total_amount: qty * meta.price,
-  };
-});
-
-const ALL_CATEGORIES = ["전체", ...Array.from(new Set(mockSalesRecords.map((r) => r.category))).sort()];
-const PAGE_SIZE = 10;
+const CATEGORIES = ["전체", "음료", "도시락/간편식", "과자/스낵", "유제품", "생활용품", "담배", "식품", "기타"];
+const PAGE_SIZE = 20;
 
 export default function SalesPage() {
-  const [startDate, setStartDate]   = useState("");
-  const [endDate, setEndDate]       = useState("");
-  const [category, setCategory]     = useState("전체");
+  const [startDate, setStartDate]     = useState("");
+  const [endDate, setEndDate]         = useState("");
+  const [category, setCategory]       = useState("전체");
   const [currentPage, setCurrentPage] = useState(1);
 
-  const filteredRecords = mockSalesRecords.filter((r) => {
-    if (startDate && r.sale_date < startDate) return false;
-    if (endDate   && r.sale_date > endDate)   return false;
-    if (category !== "전체" && r.category !== category) return false;
-    return true;
-  });
+  const [records, setRecords]     = useState<SalesRow[]>([]);
+  const [total, setTotal]         = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const totalAmount = filteredRecords.reduce((s, r) => s + r.total_amount, 0);
-  const totalQty    = filteredRecords.reduce((s, r) => s + r.quantity, 0);
+  const fetchRecords = useCallback(async (page: number) => {
+    setIsLoading(true);
+    try {
+      const res = await salesApi.getRecords({
+        start_date: startDate || undefined,
+        end_date: endDate || undefined,
+        category: category !== "전체" ? category : undefined,
+        page,
+        size: PAGE_SIZE,
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const data = res.data as any;
+      setRecords(data.items || []);
+      setTotal(data.total || 0);
+    } catch {
+      setRecords([]);
+      setTotal(0);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [startDate, endDate, category]);
 
-  // 카테고리별 집계
-  const categoryStats = ALL_CATEGORIES.filter((c) => c !== "전체").map((cat) => {
-    const items = filteredRecords.filter((r) => r.category === cat);
-    return {
-      category: cat,
-      amount: items.reduce((s, r) => s + r.total_amount, 0),
-      count: items.length,
-    };
+  useEffect(() => {
+    fetchRecords(currentPage);
+  }, [currentPage, fetchRecords]);
+
+  const totalAmount = records.reduce((s, r) => s + r.total_amount, 0);
+  const totalQty    = records.reduce((s, r) => s + r.quantity, 0);
+  const totalPages  = Math.ceil(total / PAGE_SIZE);
+
+  // 카테고리별 집계 (현재 페이지 기준)
+  const categoryStats = CATEGORIES.filter((c) => c !== "전체").map((cat) => {
+    const items = records.filter((r) => r.product?.category === cat);
+    return { category: cat, amount: items.reduce((s, r) => s + r.total_amount, 0), count: items.length };
   }).filter((c) => c.count > 0);
 
-  const totalPages      = Math.ceil(filteredRecords.length / PAGE_SIZE);
-  const paginatedRecords = filteredRecords.slice(
-    (currentPage - 1) * PAGE_SIZE,
-    currentPage * PAGE_SIZE
-  );
-
-  const handleFilter = () => setCurrentPage(1);
-  const handleReset  = () => {
+  const handleFilter = () => {
+    setCurrentPage(1);
+    fetchRecords(1);
+  };
+  const handleReset = () => {
     setStartDate("");
     setEndDate("");
     setCategory("전체");
@@ -110,7 +104,7 @@ export default function SalesPage() {
               onChange={(e) => { setCategory(e.target.value); setCurrentPage(1); }}
               className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             >
-              {ALL_CATEGORIES.map((c) => (
+              {CATEGORIES.map((c) => (
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
@@ -133,17 +127,17 @@ export default function SalesPage() {
       {/* Summary Stats */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="rounded-xl bg-white p-5 shadow-sm border border-gray-100">
-          <p className="text-xs font-medium text-gray-500">조회 기간 총 매출</p>
+          <p className="text-xs font-medium text-gray-500">조회 기간 총 매출 (현재 페이지)</p>
           <p className="mt-1 text-xl font-bold text-gray-800">
             {totalAmount.toLocaleString()}원
           </p>
-          <p className="mt-0.5 text-xs text-gray-400">총 {filteredRecords.length}건</p>
+          <p className="mt-0.5 text-xs text-gray-400">총 {total}건</p>
         </div>
         <div className="rounded-xl bg-white p-5 shadow-sm border border-gray-100">
           <p className="text-xs font-medium text-gray-500">총 판매 수량</p>
           <p className="mt-1 text-xl font-bold text-gray-800">{totalQty.toLocaleString()}개</p>
           <p className="mt-0.5 text-xs text-gray-400">
-            건당 평균 {filteredRecords.length > 0 ? Math.round(totalAmount / filteredRecords.length).toLocaleString() : 0}원
+            건당 평균 {records.length > 0 ? Math.round(totalAmount / records.length).toLocaleString() : 0}원
           </p>
         </div>
         <div className="rounded-xl bg-white p-5 shadow-sm border border-gray-100">
@@ -168,7 +162,7 @@ export default function SalesPage() {
       <div className="rounded-xl bg-white p-5 shadow-sm border border-gray-100">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-base font-semibold text-gray-800">매출 내역</h3>
-          <span className="text-sm text-gray-500">총 {filteredRecords.length}건</span>
+          <span className="text-sm text-gray-500">총 {total}건</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
@@ -183,14 +177,21 @@ export default function SalesPage() {
               </tr>
             </thead>
             <tbody>
-              {paginatedRecords.map((record) => (
+              {isLoading && (
+                <tr>
+                  <td colSpan={6} className="py-8 text-center text-sm text-gray-400">
+                    로딩 중...
+                  </td>
+                </tr>
+              )}
+              {!isLoading && records.map((record) => (
                 <tr key={record.id} className="border-b border-gray-100 text-gray-700">
                   <td className="py-3 pr-4">{record.sale_date}</td>
-                  <td className="py-3 pr-4">{record.sale_time}</td>
-                  <td className="py-3 pr-4 font-medium">{record.product_name}</td>
+                  <td className="py-3 pr-4">{record.sale_time ?? "-"}</td>
+                  <td className="py-3 pr-4 font-medium">{record.product?.name ?? "-"}</td>
                   <td className="py-3 pr-4">
                     <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
-                      {record.category}
+                      {record.product?.category ?? "-"}
                     </span>
                   </td>
                   <td className="py-3 pr-4 text-right">{record.quantity}</td>
@@ -199,7 +200,7 @@ export default function SalesPage() {
                   </td>
                 </tr>
               ))}
-              {paginatedRecords.length === 0 && (
+              {!isLoading && records.length === 0 && (
                 <tr>
                   <td colSpan={6} className="py-8 text-center text-sm text-gray-400">
                     조회된 매출 내역이 없습니다.
@@ -220,7 +221,7 @@ export default function SalesPage() {
             >
               이전
             </button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+            {Array.from({ length: Math.min(totalPages, 10) }, (_, i) => i + 1).map((page) => (
               <button
                 key={page}
                 onClick={() => setCurrentPage(page)}

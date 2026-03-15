@@ -45,52 +45,82 @@ Next.js Frontend :3000
         ↓
 FastAPI Backend :8000
     ├── /api/auth       → 인증 (로그인/회원가입/JWT)
-    ├── /api/sales      → 매출 데이터 CRUD
-    ├── /api/upload     → 엑셀/CSV/스크린샷 업로드
-    ├── /api/analysis   → 분석 결과 조회
-    ├── /api/weather    → 날씨 데이터 (기상청 API 프록시)
-    ├── /api/events     → 이벤트/환경변수 관리
-    └── /api/promotion  → 본사 행사 아이템 분석
+    ├── /api/sales      → 매출 데이터 CRUD + 목록 조회
+    ├── /api/upload     → 엑셀/CSV 업로드 (/file), 이력 조회 (/history)
+    ├── /api/analysis   → 분석 결과 (daily/monthly/category/products/summary)
+    ├── /api/events     → 이벤트/환경변수 관리 (GET/POST/DELETE)
+    ├── /api/weather    → 날씨 데이터 (기상청 API 프록시) [미구현]
+    └── /api/promotion  → 본사 행사 아이템 분석 [미구현]
         ↓
 PostgreSQL :5432  +  Redis :6379
 ```
 
+### MCP 서버 (`.mcp.json` 설정됨)
+Claude Code에서 직접 DB/인프라 조작 가능. Docker 컨테이너 실행 중일 때 활성화.
+- **postgres** — `@modelcontextprotocol/server-postgres` → DB 쿼리, 스키마 탐색
+- **redis** — `mcp-server-redis` → 캐시 키 조회/관리
+- **docker** — `@docker/mcp-docker` → 컨테이너 상태, 로그 조회
+
 ### 프론트엔드 페이지 구조
 | 경로 | 페이지 | 상태 |
 |------|--------|------|
-| `/dashboard` | KPI 요약 카드 + 매출 추이 (일별/주별/월별 탭) + 카테고리 차트 | 구현 완료 (mock) |
-| `/sales` | 매출 내역 테이블 (날짜·카테고리 필터, 매출 총합 요약, 카테고리별 집계) | 구현 완료 (mock) |
-| `/upload` | 엑셀/CSV 업로드 + 이력 테이블 | 구현 완료 (mock) |
-| `/analysis` | 탭: 월별(날씨·이벤트)/주별(날씨·이벤트·상품순위)/일별(시간별 차트)/시간대별 | 구현 완료 (mock) |
-| `/promotion` | 행사 이익율 계산기 + 참여/미참여 비교 + 이력 | 구현 완료 (mock) |
-| `/settings` | 점포 정보 + 이벤트 관리 (추가/삭제) | 구현 완료 (mock) |
-| `/login` | 로그인 | 구현 완료 (mock) |
-| `/register` | 회원가입 | 구현 완료 (mock) |
+| `/dashboard` | KPI 요약 카드 + 매출 추이 (일별/주별/월별 탭) + 카테고리 차트 | **실제 API 연동 완료** |
+| `/sales` | 매출 내역 테이블 (날짜·카테고리 필터, 매출 총합 요약, 카테고리별 집계) | **실제 API 연동 완료** |
+| `/upload` | 엑셀/CSV 업로드 + 이력 테이블 | **실제 API 연동 완료** |
+| `/analysis` | 탭: 월별(날씨·이벤트)/주별/일별/시간대별 | mock 데이터 (Phase 4에서 연동 예정) |
+| `/promotion` | 행사 이익율 계산기 + 참여/미참여 비교 | mock 데이터 (Phase 6에서 연동 예정) |
+| `/settings` | 점포 정보 + 이벤트 관리 (추가/삭제) | mock 데이터 (Phase 4에서 연동 예정) |
+| `/login` | 로그인 | **실제 API 연동 완료** |
+| `/register` | 회원가입 | **실제 API 연동 완료** |
 
 ### 백엔드 구조
 ```
 backend/app/
-├── main.py           # FastAPI 앱, CORS (localhost:3000), 라우터 등록
+├── main.py               # FastAPI 앱, CORS (localhost:3000), 라우터 등록
+│                         # 등록된 라우터: auth, sales, upload, analysis, events
 ├── core/
-│   ├── config.py     # 환경 설정 (DB URL, JWT, Redis, 업로드 경로)
-│   ├── database.py   # SQLAlchemy 엔진, SessionLocal, get_db()
-│   └── security.py   # JWT 발급/검증, 비밀번호 해싱 (bcrypt)
-├── models/           # SQLAlchemy ORM 모델
-├── schemas/          # Pydantic 스키마 (요청/응답)
-├── routers/          # API 라우터 (auth, sales, upload, analysis)
-└── services/         # 비즈니스 로직 (auth, upload, analysis, ocr, prediction)
+│   ├── config.py         # 환경 설정 (DB URL, JWT, Redis, 업로드 경로)
+│   ├── database.py       # SQLAlchemy 엔진, SessionLocal, get_db()
+│   └── security.py       # JWT 발급/검증, bcrypt, get_current_user() Dependency
+├── models/
+│   ├── user.py           # User (email, password_hash, store_name, store_address)
+│   ├── product.py        # Product (barcode, name, category, cost_price, selling_price)
+│   ├── sales.py          # SalesRecord (product_id FK, user_id FK, sale_date, sale_hour, quantity, total_amount)
+│   ├── upload.py         # UploadHistory (file_name, file_type, record_count, status)
+│   ├── event.py          # Event (user_id FK, event_date, event_type, description)
+│   └── weather.py        # WeatherData (date UNIQUE, avg_temp, condition, precipitation)
+├── schemas/
+│   ├── user.py           # UserCreate, UserLogin, UserResponse, TokenResponse
+│   ├── sales.py          # SalesRecordCreate/Response, DailySalesResponse, MonthlySalesResponse,
+│   │                     #   CategorySalesResponse, ProductRankResponse, SalesListResponse
+│   ├── upload.py         # UploadResultResponse, UploadHistoryResponse, UploadHistoryListResponse
+│   ├── event.py          # EventCreate, EventResponse
+│   └── analysis.py       # DailySales, MonthlySales, HourlySales, CategorySales,
+│                         #   TopProduct, SummaryResponse
+├── routers/
+│   ├── auth.py           # POST /api/auth/register, /api/auth/login
+│   ├── sales.py          # GET /api/sales (페이지네이션), GET /api/sales/{id}, POST /api/sales
+│   ├── upload.py         # POST /api/upload/file, GET /api/upload/history
+│   ├── analysis.py       # GET /api/analysis/daily|monthly|category|products|summary
+│   └── events.py         # GET/POST/DELETE /api/events
+└── services/
+    ├── auth.py           # register_user(), authenticate_user()
+    ├── upload.py         # process_upload() — CSV/Excel 파싱, 한글 컬럼 매핑, DB 저장
+    └── analysis.py       # get_daily_sales(), get_monthly_sales(), get_category_sales(),
+                          #   get_product_ranking(), get_summary()
 ```
 
 ### DB 테이블
 ```
 users           → 점주 계정 (email, password_hash, store_name, store_address)
-products        → 상품 마스터 (바코드, 이름, 카테고리, 입고가)
-sales_records   → 매출 원본 (날짜, 시간, 상품, 수량, 금액)
-weather_data    → 일별 날씨 (기상청 API 수집)
-events          → 환경 변수 (학교 행사, 공휴일, 지역 이벤트)
-promotions      → 본사 행사 아이템 정보
-upload_history  → 업로드 이력
+products        → 상품 마스터 (바코드, 이름, 카테고리, 입고가) — user_id 없음, 공유 테이블
+sales_records   → 매출 원본 (user_id FK, product_id FK, sale_date, sale_time, quantity, total_amount)
+weather_data    → 일별 날씨 (date UNIQUE, avg_temp, condition, precipitation)
+events          → 환경 변수 (user_id FK, event_date, event_type, description)
+upload_history  → 업로드 이력 (user_id FK, file_name, file_type, record_count, status, error_message)
 ```
+
+> ⚠️ **주의**: `products` 테이블에 `user_id`가 없음. 업로드 시 상품명 기준으로 upsert되며 모든 유저가 공유. Phase 4에서 user별 상품 분리 고려 필요.
 
 ## 프론트엔드 코드 컨벤션
 
@@ -133,7 +163,7 @@ upload_history  → 업로드 이력
 - 기능별 컴포넌트: `src/components/[기능명]/`
 - 공용 컴포넌트: `src/components/common/`
 - 타입 정의: `src/types/index.ts`
-- API 호출: `src/lib/api.ts`
+- API 호출: `src/lib/api.ts` (authApi / salesApi / analysisApi / uploadApi 4개 객체)
 - 인증 유틸: `src/lib/auth.ts`
 
 ### 새 페이지 추가 시 체크리스트
@@ -141,34 +171,55 @@ upload_history  → 업로드 이력
 2. `src/components/layout/Sidebar.tsx` — `navigation` 배열에 항목 추가
 3. `src/components/layout/Header.tsx` — `pageTitles` 객체에 타이틀 추가
 
+## API 클라이언트 구조 (`src/lib/api.ts`)
+
+```typescript
+authApi.login(data)              // POST /api/auth/login
+authApi.register(data)           // POST /api/auth/register
+authApi.me()                     // GET /api/auth/me
+
+salesApi.getRecords(params)      // GET /api/sales (start_date, end_date, category, page, size)
+
+analysisApi.getSummary()         // GET /api/analysis/summary → {today_amount, yesterday_amount, this_month_amount, total_products}
+analysisApi.getDaily(start, end) // GET /api/analysis/daily → [{date, total_amount, total_quantity}]
+analysisApi.getMonthly(year)     // GET /api/analysis/monthly → [{year, month, total_amount, total_quantity}]
+analysisApi.getCategory(s, e)    // GET /api/analysis/category → [{category, total_amount, ratio}]
+analysisApi.getTopProducts(n, s, e) // GET /api/analysis/products?top_n=N
+
+uploadApi.uploadFile(file, onProgress) // POST /api/upload/file
+uploadApi.getHistory()           // GET /api/upload/history → {items, total}
+```
+
+> **백엔드-프론트 타입 차이 주의**:
+> - `CategorySales` 백엔드는 `ratio` 반환 (프론트 타입에는 `ratio?` + `percentage?` 둘 다 있음)
+> - `SalesRecord` 백엔드는 `product` 중첩 객체 반환 (`product.name`, `product.category`), 프론트 `sales/page.tsx`에서 직접 매핑
+
 ## 주요 기술 사항
 - 프론트엔드 인증 상태: Zustand (`authStore`) + localStorage 토큰 저장
 - 백엔드 인증: JWT (HS256, 24시간 만료)
-- 현재 모든 페이지는 mock data 기반으로 동작 → 백엔드 연동 시 `src/lib/api.ts` 교체
 - 환경 설정: `backend/app/core/config.py` (DB URL, SECRET_KEY 등)
+- 실제 환경 변수: `backend/.env` (`.env.example` 복사 후 작성)
 - CORS: 백엔드에서 `localhost:3000` 허용 설정됨
+- 업로드 지원 형식: `.xlsx`, `.xls`, `.csv` (PDF 미지원, Phase 5에서 OCR 예정)
 
-## Mock 데이터 교체 가이드 (날씨·이벤트)
-날씨/이벤트 mock 데이터는 `src/app/analysis/page.tsx` 상단에 집중 정의됨.
-추후 API 연동 시 아래 TODO 주석 위치를 교체:
-- `mockMonthlyData` → `GET /api/analysis/monthly` + 기상청 API 병합
-- `mockWeeklyData`  → `GET /api/analysis/weekly` + 날씨/이벤트 병합
-- `mockHourlyByDate` → `GET /api/analysis/hourly?date=YYYY-MM-DD`
-- `mockAggregatedHourly` → `GET /api/analysis/hourly-avg`
-
-### 관련 타입 (`src/types/index.ts`)
-```ts
-WeatherInfo   // avgTemp, condition (sunny/cloudy/rainy/snowy), precipitation
-EventInfo     // name, type (holiday/school/local/other), date?
-MonthlyWithMeta  // MonthlySales + label + weather + events
-WeeklyWithMeta   // WeeklySales + weather + events + topProducts
-HourlySales   // hour, total_amount, total_quantity
-```
+## 남은 Mock 데이터 (`src/app/analysis/page.tsx`)
+`/analysis` 페이지는 아직 mock 데이터 사용. Phase 4 연동 시 교체:
+- `mockMonthlyData` → `analysisApi.getMonthly()` + 기상청 API 병합
+- `mockWeeklyData`  → `analysisApi.getDaily()` + 날씨/이벤트 병합
+- `mockHourlyByDate` → `GET /api/analysis/hourly?date=YYYY-MM-DD` (미구현 엔드포인트)
+- `mockAggregatedHourly` → `GET /api/analysis/hourly-avg` (미구현 엔드포인트)
 
 ## 개발 로드맵 (Phase)
 | Phase | 내용 | 상태 |
 |-------|------|------|
-| 1 | MVP (인증, 엑셀 업로드, 기본 대시보드) | 프론트 UI 완료, 백엔드 진행중 |
-| 2 | 환경 변수 연동 (기상청/공휴일 API, 이벤트 입력) | 미착수 |
+| 1 | MVP (인증, 엑셀 업로드, 기본 대시보드) | **완료** (백엔드 API + 프론트 연동 모두 완료) |
+| 2 | 환경 변수 연동 (기상청/공휴일 API, 이벤트 입력 UI) | 미착수 |
 | 3 | POS 스크린샷 OCR 파이프라인 | 미착수 |
 | 4 | 수요 예측·발주 추천·행사 분석 고도화 | 미착수 |
+
+## 다음 작업 우선순위 (Phase 2)
+1. `backend/app/services/weather.py` — 기상청 단기예보 API 연동
+2. `backend/app/routers/weather.py` — `GET /api/weather`
+3. `frontend/src/app/settings/page.tsx` — 이벤트 CRUD를 `/api/events`에 연동
+4. `frontend/src/app/analysis/page.tsx` — mock → 실제 API + 날씨/이벤트 병합
+5. 시간대별 분석: `GET /api/analysis/hourly` 엔드포인트 추가 (backend)
