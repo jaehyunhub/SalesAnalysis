@@ -592,7 +592,7 @@ export default function AnalysisPage() {
         const monthTopProducts = MONTHLY_TOP_PRODUCTS[selectedMonth.month] ?? MONTHLY_TOP_PRODUCTS.default;
         const monthCategoryStats = makeCategoryStats(selectedMonth.total_amount);
         const chartData = mockMonthlyData.map(m => ({
-          label: m.label, total_amount: m.total_amount,
+          label: m.label, total_amount: m.total_amount, avgTemp: m.weather.avgTemp,
         }));
 
         return (
@@ -610,7 +610,7 @@ export default function AnalysisPage() {
               <p className="mb-3 text-xs text-gray-400">막대 위 점 = 이벤트 / 막대를 클릭하면 상세 정보를 확인합니다.</p>
               <div className="h-[320px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
+                  <ComposedChart
                     data={chartData}
                     onClick={(d) => { if (d?.activeTooltipIndex != null) setSelectedMonthIdx(d.activeTooltipIndex as number); }}
                     style={{ cursor: "pointer" }}
@@ -622,15 +622,38 @@ export default function AnalysisPage() {
                       tick={(p) => <MonthWeatherTick {...p} metaMap={monthMetaMap} />}
                       tickLine={false}
                     />
-                    <YAxis tickFormatter={formatAmount} tick={{ fontSize: 11, fill: "#9ca3af" }} tickLine={false} axisLine={false} />
+                    <YAxis yAxisId="sales" tickFormatter={formatAmount} tick={{ fontSize: 11, fill: "#9ca3af" }} tickLine={false} axisLine={false} />
+                    <YAxis
+                      yAxisId="temp"
+                      orientation="right"
+                      tickFormatter={(v) => `${v}°`}
+                      tick={{ fontSize: 11, fill: "#f97316" }}
+                      tickLine={false}
+                      axisLine={false}
+                      domain={["auto", "auto"]}
+                      width={36}
+                    />
                     <Tooltip content={<MonthlyTooltip metaList={mockMonthlyData} />} />
-                    <Bar dataKey="total_amount" radius={[4, 4, 0, 0]} maxBarSize={50} shape={MonthBarShape}>
+                    <Bar yAxisId="sales" dataKey="total_amount" radius={[4, 4, 0, 0]} maxBarSize={50} shape={MonthBarShape}>
                       {chartData.map((_, idx) => (
                         <Cell key={idx} fill={idx === selectedMonthIdx ? "#1d4ed8" : "#3b82f6"} />
                       ))}
                     </Bar>
-                  </BarChart>
+                    <Line
+                      yAxisId="temp"
+                      type="monotone"
+                      dataKey="avgTemp"
+                      name="평균기온"
+                      stroke="#f97316"
+                      strokeWidth={2}
+                      dot={{ r: 3, fill: "#f97316", strokeWidth: 0 }}
+                      activeDot={{ r: 5 }}
+                    />
+                  </ComposedChart>
                 </ResponsiveContainer>
+              </div>
+              <div className="mt-2 flex items-center gap-4 text-xs text-gray-400">
+                <span className="flex items-center gap-1.5"><span className="inline-block h-0.5 w-4 bg-orange-400 rounded" /> 평균기온</span>
               </div>
             </div>
 
@@ -725,7 +748,7 @@ export default function AnalysisPage() {
       {/* ── 주별 탭 ── */}
       {activeTab === "weekly" && (() => {
         const selectedWeek = mockWeeklyData[selectedWeekIdx];
-        const chartData = mockWeeklyData.map(w => ({ label: w.label, total_amount: w.total_amount }));
+        const chartData = mockWeeklyData.map(w => ({ label: w.label, total_amount: w.total_amount, avgTemp: w.weather.avgTemp }));
 
         return (
           <div className="space-y-6">
@@ -741,7 +764,7 @@ export default function AnalysisPage() {
               <p className="mb-3 text-xs text-gray-400">막대를 클릭하면 해당 주 상세 정보를 확인합니다.</p>
               <div className="h-[320px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
+                  <ComposedChart
                     data={chartData}
                     onClick={(d) => { if (d?.activeTooltipIndex != null) setSelectedWeekIdx(d.activeTooltipIndex as number); }}
                     style={{ cursor: "pointer" }}
@@ -753,15 +776,38 @@ export default function AnalysisPage() {
                       tick={(p) => <WeekWeatherTick {...p} metaMap={weekMetaMap} />}
                       tickLine={false}
                     />
-                    <YAxis tickFormatter={formatAmount} tick={{ fontSize: 11, fill: "#9ca3af" }} tickLine={false} axisLine={false} />
+                    <YAxis yAxisId="sales" tickFormatter={formatAmount} tick={{ fontSize: 11, fill: "#9ca3af" }} tickLine={false} axisLine={false} />
+                    <YAxis
+                      yAxisId="temp"
+                      orientation="right"
+                      tickFormatter={(v) => `${v}°`}
+                      tick={{ fontSize: 11, fill: "#f97316" }}
+                      tickLine={false}
+                      axisLine={false}
+                      domain={["auto", "auto"]}
+                      width={36}
+                    />
                     <Tooltip content={<WeeklyTooltip metaList={mockWeeklyData} />} />
-                    <Bar dataKey="total_amount" radius={[4, 4, 0, 0]} maxBarSize={50} shape={WeekBarShape}>
+                    <Bar yAxisId="sales" dataKey="total_amount" radius={[4, 4, 0, 0]} maxBarSize={50} shape={WeekBarShape}>
                       {chartData.map((_, idx) => (
                         <Cell key={idx} fill={idx === selectedWeekIdx ? "#1d4ed8" : "#3b82f6"} />
                       ))}
                     </Bar>
-                  </BarChart>
+                    <Line
+                      yAxisId="temp"
+                      type="monotone"
+                      dataKey="avgTemp"
+                      name="평균기온"
+                      stroke="#f97316"
+                      strokeWidth={2}
+                      dot={{ r: 3, fill: "#f97316", strokeWidth: 0 }}
+                      activeDot={{ r: 5 }}
+                    />
+                  </ComposedChart>
                 </ResponsiveContainer>
+              </div>
+              <div className="mt-2 flex items-center gap-4 text-xs text-gray-400">
+                <span className="flex items-center gap-1.5"><span className="inline-block h-0.5 w-4 bg-orange-400 rounded" /> 평균기온</span>
               </div>
             </div>
 
