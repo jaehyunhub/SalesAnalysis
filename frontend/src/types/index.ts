@@ -48,6 +48,7 @@ export interface HourlySales {
   hour: string;
   total_amount: number;
   total_quantity: number;
+  temp?: number; // 해당 시간대 기온(°C) — TODO: 기상청 시간별 API
 }
 
 export interface CategorySales {

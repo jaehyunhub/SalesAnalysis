@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import {
-  BarChart, Bar,
-  XAxis, YAxis, CartesianGrid, Tooltip,
+  ComposedChart, BarChart, Bar, Line,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, Cell,
 } from "recharts";
 import type { MonthlyWithMeta, WeeklyWithMeta, HourlySales, DailyMeta } from "@/types";
@@ -304,67 +304,68 @@ const mockDailyMeta: Record<string, DailyMeta> = {
 };
 
 const mockHourlyByDate: Record<string, HourlySales[]> = {
+  // TODO: GET /api/analysis/hourly?date=YYYY-MM-DD (temp 필드는 기상청 시간별 API)
   "2026-03-15": [
-    { hour: "06", total_amount: 45000,  total_quantity: 12 },
-    { hour: "07", total_amount: 125000, total_quantity: 38 },
-    { hour: "08", total_amount: 185000, total_quantity: 56 },
-    { hour: "09", total_amount: 145000, total_quantity: 44 },
-    { hour: "10", total_amount: 92000,  total_quantity: 28 },
-    { hour: "11", total_amount: 110000, total_quantity: 33 },
-    { hour: "12", total_amount: 210000, total_quantity: 65 },
-    { hour: "13", total_amount: 175000, total_quantity: 54 },
-    { hour: "14", total_amount: 88000,  total_quantity: 27 },
-    { hour: "15", total_amount: 95000,  total_quantity: 29 },
-    { hour: "16", total_amount: 125000, total_quantity: 38 },
-    { hour: "17", total_amount: 165000, total_quantity: 50 },
-    { hour: "18", total_amount: 225000, total_quantity: 68 },
-    { hour: "19", total_amount: 195000, total_quantity: 59 },
-    { hour: "20", total_amount: 145000, total_quantity: 44 },
-    { hour: "21", total_amount: 85000,  total_quantity: 26 },
-    { hour: "22", total_amount: 55000,  total_quantity: 17 },
-    { hour: "23", total_amount: 25000,  total_quantity: 8  },
+    { hour: "06", total_amount: 45000,  total_quantity: 12, temp: 7.2  },
+    { hour: "07", total_amount: 125000, total_quantity: 38, temp: 8.1  },
+    { hour: "08", total_amount: 185000, total_quantity: 56, temp: 9.3  },
+    { hour: "09", total_amount: 145000, total_quantity: 44, temp: 10.5 },
+    { hour: "10", total_amount: 92000,  total_quantity: 28, temp: 11.8 },
+    { hour: "11", total_amount: 110000, total_quantity: 33, temp: 12.9 },
+    { hour: "12", total_amount: 210000, total_quantity: 65, temp: 13.6 },
+    { hour: "13", total_amount: 175000, total_quantity: 54, temp: 14.2 },
+    { hour: "14", total_amount: 88000,  total_quantity: 27, temp: 14.8 },
+    { hour: "15", total_amount: 95000,  total_quantity: 29, temp: 14.5 },
+    { hour: "16", total_amount: 125000, total_quantity: 38, temp: 13.9 },
+    { hour: "17", total_amount: 165000, total_quantity: 50, temp: 12.7 },
+    { hour: "18", total_amount: 225000, total_quantity: 68, temp: 11.4 },
+    { hour: "19", total_amount: 195000, total_quantity: 59, temp: 10.2 },
+    { hour: "20", total_amount: 145000, total_quantity: 44, temp: 9.1  },
+    { hour: "21", total_amount: 85000,  total_quantity: 26, temp: 8.5  },
+    { hour: "22", total_amount: 55000,  total_quantity: 17, temp: 8.0  },
+    { hour: "23", total_amount: 25000,  total_quantity: 8,  temp: 7.6  },
   ],
   "2026-03-14": [
-    { hour: "06", total_amount: 38000,  total_quantity: 10 },
-    { hour: "07", total_amount: 112000, total_quantity: 34 },
-    { hour: "08", total_amount: 170000, total_quantity: 52 },
-    { hour: "09", total_amount: 135000, total_quantity: 41 },
-    { hour: "10", total_amount: 85000,  total_quantity: 26 },
-    { hour: "11", total_amount: 105000, total_quantity: 32 },
-    { hour: "12", total_amount: 195000, total_quantity: 60 },
-    { hour: "13", total_amount: 162000, total_quantity: 49 },
-    { hour: "14", total_amount: 80000,  total_quantity: 24 },
-    { hour: "15", total_amount: 90000,  total_quantity: 27 },
-    { hour: "16", total_amount: 118000, total_quantity: 36 },
-    { hour: "17", total_amount: 155000, total_quantity: 47 },
-    { hour: "18", total_amount: 218000, total_quantity: 66 },
-    { hour: "19", total_amount: 185000, total_quantity: 56 },
-    { hour: "20", total_amount: 138000, total_quantity: 42 },
-    { hour: "21", total_amount: 78000,  total_quantity: 24 },
-    { hour: "22", total_amount: 48000,  total_quantity: 15 },
-    { hour: "23", total_amount: 22000,  total_quantity: 7  },
+    { hour: "06", total_amount: 38000,  total_quantity: 10, temp: 5.8  },
+    { hour: "07", total_amount: 112000, total_quantity: 34, temp: 6.5  },
+    { hour: "08", total_amount: 170000, total_quantity: 52, temp: 7.8  },
+    { hour: "09", total_amount: 135000, total_quantity: 41, temp: 9.0  },
+    { hour: "10", total_amount: 85000,  total_quantity: 26, temp: 10.2 },
+    { hour: "11", total_amount: 105000, total_quantity: 32, temp: 11.4 },
+    { hour: "12", total_amount: 195000, total_quantity: 60, temp: 12.1 },
+    { hour: "13", total_amount: 162000, total_quantity: 49, temp: 12.8 },
+    { hour: "14", total_amount: 80000,  total_quantity: 24, temp: 13.2 },
+    { hour: "15", total_amount: 90000,  total_quantity: 27, temp: 13.0 },
+    { hour: "16", total_amount: 118000, total_quantity: 36, temp: 12.2 },
+    { hour: "17", total_amount: 155000, total_quantity: 47, temp: 11.1 },
+    { hour: "18", total_amount: 218000, total_quantity: 66, temp: 9.8  },
+    { hour: "19", total_amount: 185000, total_quantity: 56, temp: 8.9  },
+    { hour: "20", total_amount: 138000, total_quantity: 42, temp: 8.2  },
+    { hour: "21", total_amount: 78000,  total_quantity: 24, temp: 7.5  },
+    { hour: "22", total_amount: 48000,  total_quantity: 15, temp: 7.0  },
+    { hour: "23", total_amount: 22000,  total_quantity: 7,  temp: 6.6  },
   ],
 };
 
 const defaultHourly: HourlySales[] = [
-  { hour: "06", total_amount: 40000,  total_quantity: 11 },
-  { hour: "07", total_amount: 108000, total_quantity: 33 },
-  { hour: "08", total_amount: 162000, total_quantity: 49 },
-  { hour: "09", total_amount: 128000, total_quantity: 39 },
-  { hour: "10", total_amount: 82000,  total_quantity: 25 },
-  { hour: "11", total_amount: 100000, total_quantity: 30 },
-  { hour: "12", total_amount: 192000, total_quantity: 58 },
-  { hour: "13", total_amount: 158000, total_quantity: 48 },
-  { hour: "14", total_amount: 78000,  total_quantity: 24 },
-  { hour: "15", total_amount: 88000,  total_quantity: 27 },
-  { hour: "16", total_amount: 112000, total_quantity: 34 },
-  { hour: "17", total_amount: 152000, total_quantity: 46 },
-  { hour: "18", total_amount: 208000, total_quantity: 63 },
-  { hour: "19", total_amount: 178000, total_quantity: 54 },
-  { hour: "20", total_amount: 132000, total_quantity: 40 },
-  { hour: "21", total_amount: 75000,  total_quantity: 23 },
-  { hour: "22", total_amount: 46000,  total_quantity: 14 },
-  { hour: "23", total_amount: 20000,  total_quantity: 6  },
+  { hour: "06", total_amount: 40000,  total_quantity: 11, temp: 6.5  },
+  { hour: "07", total_amount: 108000, total_quantity: 33, temp: 7.3  },
+  { hour: "08", total_amount: 162000, total_quantity: 49, temp: 8.6  },
+  { hour: "09", total_amount: 128000, total_quantity: 39, temp: 9.8  },
+  { hour: "10", total_amount: 82000,  total_quantity: 25, temp: 11.0 },
+  { hour: "11", total_amount: 100000, total_quantity: 30, temp: 12.2 },
+  { hour: "12", total_amount: 192000, total_quantity: 58, temp: 13.0 },
+  { hour: "13", total_amount: 158000, total_quantity: 48, temp: 13.5 },
+  { hour: "14", total_amount: 78000,  total_quantity: 24, temp: 13.8 },
+  { hour: "15", total_amount: 88000,  total_quantity: 27, temp: 13.4 },
+  { hour: "16", total_amount: 112000, total_quantity: 34, temp: 12.6 },
+  { hour: "17", total_amount: 152000, total_quantity: 46, temp: 11.5 },
+  { hour: "18", total_amount: 208000, total_quantity: 63, temp: 10.3 },
+  { hour: "19", total_amount: 178000, total_quantity: 54, temp: 9.4  },
+  { hour: "20", total_amount: 132000, total_quantity: 40, temp: 8.7  },
+  { hour: "21", total_amount: 75000,  total_quantity: 23, temp: 8.1  },
+  { hour: "22", total_amount: 46000,  total_quantity: 14, temp: 7.6  },
+  { hour: "23", total_amount: 20000,  total_quantity: 6,  temp: 7.2  },
 ];
 
 // ─────────────────────────────────────────────────────────────
@@ -883,30 +884,70 @@ export default function AnalysisPage() {
           {/* Hourly Chart */}
           <div className="rounded-xl bg-white p-5 shadow-sm border border-gray-100">
             <h3 className="mb-4 text-base font-semibold text-gray-800">시간별 매출 ({selectedDate})</h3>
-            <div className="h-[280px]">
+            <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={hourlyData.map((h) => ({ ...h, label: `${h.hour}시` }))}>
+                <ComposedChart data={hourlyData.map((h) => ({ ...h, label: `${h.hour}시` }))}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                   <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#9ca3af" }} tickLine={false} />
-                  <YAxis tickFormatter={formatAmount} tick={{ fontSize: 11, fill: "#9ca3af" }} tickLine={false} axisLine={false} />
-                  <Tooltip
-                    formatter={(v, name) => [
-                      `${Number(v).toLocaleString()}${name === "total_amount" ? "원" : "건"}`,
-                      name === "total_amount" ? "매출액" : "거래수",
-                    ]}
-                    contentStyle={tooltipStyle}
+                  {/* 왼쪽 Y축: 매출 */}
+                  <YAxis
+                    yAxisId="sales"
+                    orientation="left"
+                    tickFormatter={formatAmount}
+                    tick={{ fontSize: 11, fill: "#9ca3af" }}
+                    tickLine={false}
+                    axisLine={false}
                   />
-                  <Bar dataKey="total_amount" radius={[4, 4, 0, 0]} maxBarSize={38}>
+                  {/* 오른쪽 Y축: 기온 */}
+                  <YAxis
+                    yAxisId="temp"
+                    orientation="right"
+                    tickFormatter={(v) => `${v}°`}
+                    tick={{ fontSize: 11, fill: "#f97316" }}
+                    tickLine={false}
+                    axisLine={false}
+                    domain={["auto", "auto"]}
+                    width={36}
+                  />
+                  <Tooltip
+                    contentStyle={tooltipStyle}
+                    formatter={(v, name) => {
+                      if (name === "total_amount") return [`${Number(v).toLocaleString()}원`, "매출액"];
+                      if (name === "temp") return [`${v}°C`, "기온"];
+                      return [v, name];
+                    }}
+                  />
+                  <Legend
+                    verticalAlign="bottom"
+                    height={28}
+                    formatter={(value) => (
+                      <span className="text-xs text-gray-500">
+                        {value === "total_amount" ? "매출액" : value === "temp" ? "기온" : value}
+                      </span>
+                    )}
+                  />
+                  <Bar yAxisId="sales" dataKey="total_amount" radius={[4, 4, 0, 0]} maxBarSize={38} name="total_amount">
                     {hourlyData.map((h, idx) => (
                       <Cell key={idx} fill={["07","08","12","18","19"].includes(h.hour) ? "#1d4ed8" : "#3b82f6"} />
                     ))}
                   </Bar>
-                </BarChart>
+                  <Line
+                    yAxisId="temp"
+                    type="monotone"
+                    dataKey="temp"
+                    name="temp"
+                    stroke="#f97316"
+                    strokeWidth={2}
+                    dot={{ r: 3, fill: "#f97316", strokeWidth: 0 }}
+                    activeDot={{ r: 5 }}
+                  />
+                </ComposedChart>
               </ResponsiveContainer>
             </div>
             <div className="mt-2 flex items-center gap-4 text-xs text-gray-400">
               <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-blue-800" /> 피크 시간대</span>
               <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-blue-400" /> 일반 시간대</span>
+              <span className="flex items-center gap-1.5"><span className="inline-block h-0.5 w-4 bg-orange-400 rounded" /> 기온</span>
             </div>
           </div>
 
