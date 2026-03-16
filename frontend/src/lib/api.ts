@@ -5,12 +5,9 @@ import type {
   RegisterRequest,
   AuthResponse,
   SalesRecord,
-  DailySales,
-  MonthlySales,
   CategorySales,
   TopProduct,
   UploadHistory,
-  PaginatedResponse,
   SalesQuery,
 } from "@/types";
 
@@ -58,25 +55,45 @@ export const authApi = {
   me: () => api.get("/api/auth/me"),
 };
 
-// Sales APIs
+// Sales APIs (목록 조회)
 export const salesApi = {
   getRecords: (params: SalesQuery) =>
-    api.get<PaginatedResponse<SalesRecord>>("/api/sales", { params }),
+    api.get<{ items: SalesRecord[]; total: number; page: number; size: number }>(
+      "/api/sales",
+      { params }
+    ),
+};
 
-  getDailySales: (days?: number) =>
-    api.get<DailySales[]>("/api/sales/daily", { params: { days } }),
-
-  getMonthlySales: (months?: number) =>
-    api.get<MonthlySales[]>("/api/sales/monthly", { params: { months } }),
-
-  getCategorySales: () =>
-    api.get<CategorySales[]>("/api/sales/categories"),
-
-  getTopProducts: (limit?: number) =>
-    api.get<TopProduct[]>("/api/sales/top-products", { params: { limit } }),
-
+// Analysis APIs
+export const analysisApi = {
   getSummary: () =>
-    api.get("/api/sales/summary"),
+    api.get<{ today_amount: number; yesterday_amount: number; this_month_amount: number; total_products: number }>(
+      "/api/analysis/summary"
+    ),
+
+  getDaily: (startDate?: string, endDate?: string) =>
+    api.get<Array<{ date: string; total_amount: number; total_quantity: number }>>(
+      "/api/analysis/daily",
+      { params: { start_date: startDate, end_date: endDate } }
+    ),
+
+  getMonthly: (year?: number) =>
+    api.get<Array<{ year: number; month: number; total_amount: number; total_quantity: number }>>(
+      "/api/analysis/monthly",
+      { params: { year } }
+    ),
+
+  getCategory: (startDate?: string, endDate?: string) =>
+    api.get<CategorySales[]>(
+      "/api/analysis/category",
+      { params: { start_date: startDate, end_date: endDate } }
+    ),
+
+  getTopProducts: (topN = 10, startDate?: string, endDate?: string) =>
+    api.get<TopProduct[]>(
+      "/api/analysis/products",
+      { params: { top_n: topN, start_date: startDate, end_date: endDate } }
+    ),
 };
 
 // Upload APIs
@@ -84,18 +101,22 @@ export const uploadApi = {
   uploadFile: (file: File, onProgress?: (percent: number) => void) => {
     const formData = new FormData();
     formData.append("file", file);
-    return api.post("/api/upload", formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-      onUploadProgress: (event) => {
-        if (event.total && onProgress) {
-          onProgress(Math.round((event.loaded * 100) / event.total));
-        }
-      },
-    });
+    return api.post<{ upload_id: number; file_name: string; status: string; record_count: number; message: string }>(
+      "/api/upload/file",
+      formData,
+      {
+        headers: { "Content-Type": "multipart/form-data" },
+        onUploadProgress: (event) => {
+          if (event.total && onProgress) {
+            onProgress(Math.round((event.loaded * 100) / event.total));
+          }
+        },
+      }
+    );
   },
 
   getHistory: () =>
-    api.get<UploadHistory[]>("/api/upload/history"),
+    api.get<{ items: UploadHistory[]; total: number }>("/api/upload/history"),
 };
 
 export default api;

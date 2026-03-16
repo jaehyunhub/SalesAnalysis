@@ -20,3 +20,4 @@ class User(Base):
     # relationships
     sales_records = relationship("SalesRecord", back_populates="user", lazy="dynamic")
     upload_histories = relationship("UploadHistory", back_populates="user", lazy="dynamic")
+    events = relationship("Event", back_populates="user", lazy="dynamic")

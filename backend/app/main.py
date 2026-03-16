@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.database import engine, Base
-from app.routers import auth, sales, upload, analysis
+from app.routers import auth, sales, upload, analysis, events
 
 # 테이블 자동 생성 (개발용, 프로덕션에서는 alembic 사용)
 Base.metadata.create_all(bind=engine)
@@ -33,6 +33,7 @@ app.include_router(auth.router)
 app.include_router(sales.router)
 app.include_router(upload.router)
 app.include_router(analysis.router)
+app.include_router(events.router)
 
 
 @app.get("/")

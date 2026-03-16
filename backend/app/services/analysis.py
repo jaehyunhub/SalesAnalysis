@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from typing import Optional, List
 
 from sqlalchemy import func, extract
@@ -12,6 +12,7 @@ from app.schemas.sales import (
     CategorySalesResponse,
     ProductRankResponse,
 )
+from app.schemas.analysis import SummaryResponse
 
 
 def get_daily_sales(
@@ -167,3 +168,41 @@ def get_product_ranking(
         )
         for idx, row in enumerate(rows)
     ]
+
+
+def get_summary(db: Session, user_id: int) -> SummaryResponse:
+    """오늘/전일/이번달 매출 요약과 총 상품 수를 반환한다."""
+    today = date.today()
+    yesterday = today - timedelta(days=1)
+    first_of_month = today.replace(day=1)
+
+    today_amount = (
+        db.query(func.sum(SalesRecord.total_amount))
+        .filter(SalesRecord.user_id == user_id, SalesRecord.sale_date == today)
+        .scalar()
+    ) or 0.0
+
+    yesterday_amount = (
+        db.query(func.sum(SalesRecord.total_amount))
+        .filter(SalesRecord.user_id == user_id, SalesRecord.sale_date == yesterday)
+        .scalar()
+    ) or 0.0
+
+    this_month_amount = (
+        db.query(func.sum(SalesRecord.total_amount))
+        .filter(SalesRecord.user_id == user_id, SalesRecord.sale_date >= first_of_month)
+        .scalar()
+    ) or 0.0
+
+    total_products = (
+        db.query(func.count(func.distinct(SalesRecord.product_id)))
+        .filter(SalesRecord.user_id == user_id)
+        .scalar()
+    ) or 0
+
+    return SummaryResponse(
+        today_amount=float(today_amount),
+        yesterday_amount=float(yesterday_amount),
+        this_month_amount=float(this_month_amount),
+        total_products=int(total_products),
+    )

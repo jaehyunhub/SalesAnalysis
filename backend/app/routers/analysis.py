@@ -13,11 +13,13 @@ from app.schemas.sales import (
     CategorySalesResponse,
     ProductRankResponse,
 )
+from app.schemas.analysis import SummaryResponse
 from app.services.analysis import (
     get_daily_sales,
     get_monthly_sales,
     get_category_sales,
     get_product_ranking,
+    get_summary,
 )
 
 router = APIRouter(prefix="/api/analysis", tags=["분석"])
@@ -53,6 +55,15 @@ def category_sales(
 ):
     """카테고리별 매출 비율을 조회한다."""
     return get_category_sales(db, current_user.id, start_date, end_date)
+
+
+@router.get("/summary", response_model=SummaryResponse)
+def analysis_summary(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """오늘/전일/이번달 매출 요약과 총 상품 수를 반환한다."""
+    return get_summary(db, current_user.id)
 
 
 @router.get("/products", response_model=List[ProductRankResponse])
