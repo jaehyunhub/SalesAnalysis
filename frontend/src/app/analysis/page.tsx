@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import {
-  BarChart, Bar,
-  XAxis, YAxis, CartesianGrid, Tooltip,
+  ComposedChart, BarChart, Bar, Line,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, Cell,
 } from "recharts";
 import type { MonthlyWithMeta, WeeklyWithMeta, HourlySales, DailyMeta, WeatherInfo, EventInfo, CategorySales, TopProduct } from "@/types";
@@ -706,7 +706,7 @@ export default function AnalysisPage() {
               <p className="mb-3 text-xs text-gray-400">막대 위 점 = 이벤트 / 막대를 클릭하면 상세 정보를 확인합니다.</p>
               <div className="h-[320px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
+                  <ComposedChart
                     data={chartData}
                     onClick={(d) => { if (d?.activeTooltipIndex != null) setSelectedMonthIdx(d.activeTooltipIndex as number); }}
                     style={{ cursor: "pointer" }}
@@ -725,8 +725,21 @@ export default function AnalysisPage() {
                         <Cell key={idx} fill={idx === selectedMonthIdx ? "#1d4ed8" : "#3b82f6"} />
                       ))}
                     </Bar>
-                  </BarChart>
+                    <Line
+                      yAxisId="temp"
+                      type="monotone"
+                      dataKey="avgTemp"
+                      name="평균기온"
+                      stroke="#f97316"
+                      strokeWidth={2}
+                      dot={{ r: 3, fill: "#f97316", strokeWidth: 0 }}
+                      activeDot={{ r: 5 }}
+                    />
+                  </ComposedChart>
                 </ResponsiveContainer>
+              </div>
+              <div className="mt-2 flex items-center gap-4 text-xs text-gray-400">
+                <span className="flex items-center gap-1.5"><span className="inline-block h-0.5 w-4 bg-orange-400 rounded" /> 평균기온</span>
               </div>
             </div>
 
@@ -860,7 +873,7 @@ export default function AnalysisPage() {
               <p className="mb-3 text-xs text-gray-400">막대를 클릭하면 해당 주 상세 정보를 확인합니다.</p>
               <div className="h-[320px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
+                  <ComposedChart
                     data={chartData}
                     onClick={(d) => { if (d?.activeTooltipIndex != null) setSelectedWeekIdx(d.activeTooltipIndex as number); }}
                     style={{ cursor: "pointer" }}
@@ -879,8 +892,21 @@ export default function AnalysisPage() {
                         <Cell key={idx} fill={idx === selectedWeekIdx ? "#1d4ed8" : "#3b82f6"} />
                       ))}
                     </Bar>
-                  </BarChart>
+                    <Line
+                      yAxisId="temp"
+                      type="monotone"
+                      dataKey="avgTemp"
+                      name="평균기온"
+                      stroke="#f97316"
+                      strokeWidth={2}
+                      dot={{ r: 3, fill: "#f97316", strokeWidth: 0 }}
+                      activeDot={{ r: 5 }}
+                    />
+                  </ComposedChart>
                 </ResponsiveContainer>
+              </div>
+              <div className="mt-2 flex items-center gap-4 text-xs text-gray-400">
+                <span className="flex items-center gap-1.5"><span className="inline-block h-0.5 w-4 bg-orange-400 rounded" /> 평균기온</span>
               </div>
             </div>
 
