@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import { ArrowUpTrayIcon, DocumentIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import axios from "axios";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
@@ -19,14 +19,14 @@ export default function FileUploader({ onUploadSuccess }: FileUploaderProps) {
   const [success, setSuccess] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const allowedTypes = [
+  const allowedTypes = useMemo(() => [
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     "application/vnd.ms-excel",
     "text/csv",
-  ];
-  const allowedExtensions = [".xlsx", ".csv", ".xls"];
+  ], []);
+  const allowedExtensions = useMemo(() => [".xlsx", ".csv", ".xls"], []);
 
-  const validateFile = (file: File): boolean => {
+  const validateFile = useCallback((file: File): boolean => {
     const ext = "." + file.name.split(".").pop()?.toLowerCase();
     if (!allowedExtensions.includes(ext) && !allowedTypes.includes(file.type)) {
       setError("지원하지 않는 파일 형식입니다. .xlsx 또는 .csv 파일만 업로드 가능합니다.");
@@ -37,7 +37,7 @@ export default function FileUploader({ onUploadSuccess }: FileUploaderProps) {
       return false;
     }
     return true;
-  };
+  }, [allowedExtensions, allowedTypes]);
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -60,7 +60,7 @@ export default function FileUploader({ onUploadSuccess }: FileUploaderProps) {
     if (file && validateFile(file)) {
       setSelectedFile(file);
     }
-  }, []);
+  }, [validateFile]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     setError(null);

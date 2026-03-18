@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { User } from "@/types";
-import { getToken, setToken, removeToken, getStoredUser, setStoredUser, clearAuth } from "@/lib/auth";
+import { getToken, setToken, getStoredUser, setStoredUser, clearAuth } from "@/lib/auth";
 
 interface AuthState {
   user: User | null;

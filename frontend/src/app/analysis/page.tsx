@@ -1,21 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   ComposedChart, BarChart, Bar, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, Cell,
 } from "recharts";
-import type { MonthlyWithMeta, WeeklyWithMeta, HourlySales, DailyMeta } from "@/types";
+import type { MonthlyWithMeta, WeeklyWithMeta, HourlySales, DailyMeta, WeatherInfo, EventInfo, CategorySales, TopProduct } from "@/types";
+import { analysisApi, weatherApi, eventsApi } from "@/lib/api";
 
 // ─────────────────────────────────────────────────────────────
 // 상수
 // ─────────────────────────────────────────────────────────────
 const WEATHER_CONFIG = {
-  sunny:  { icon: "☀️",  label: "맑음", bg: "bg-yellow-50",  text: "text-yellow-700", svgColor: "#92400e" },
-  cloudy: { icon: "⛅",  label: "흐림", bg: "bg-gray-100",   text: "text-gray-600",   svgColor: "#6b7280" },
-  rainy:  { icon: "🌧️", label: "비",   bg: "bg-blue-50",    text: "text-blue-700",   svgColor: "#1d4ed8" },
-  snowy:  { icon: "❄️",  label: "눈",   bg: "bg-sky-50",     text: "text-sky-700",    svgColor: "#0369a1" },
+  sunny:  { icon: "\u2600\uFE0F",  label: "맑음", bg: "bg-yellow-50",  text: "text-yellow-700", svgColor: "#92400e" },
+  cloudy: { icon: "\u26C5",  label: "흐림", bg: "bg-gray-100",   text: "text-gray-600",   svgColor: "#6b7280" },
+  rainy:  { icon: "\uD83C\uDF27\uFE0F", label: "비",   bg: "bg-blue-50",    text: "text-blue-700",   svgColor: "#1d4ed8" },
+  snowy:  { icon: "\u2744\uFE0F",  label: "눈",   bg: "bg-sky-50",     text: "text-sky-700",    svgColor: "#0369a1" },
 } as const;
 
 const EVENT_CONFIG = {
@@ -37,336 +38,190 @@ const formatAmount = (v: number) =>
   v >= 1000000 ? `${(v / 1000000).toFixed(1)}M` : v >= 1000 ? `${(v / 1000).toFixed(0)}K` : String(v);
 
 // ─────────────────────────────────────────────────────────────
-// Mock Data — TODO: 각 항목을 API로 교체
+// 헬퍼 함수
 // ─────────────────────────────────────────────────────────────
 
-const MONTHLY_TOP_PRODUCTS: Record<string, Array<{ product_name: string; category: string; total_amount: number; total_quantity: number }>> = {
-  default: [
-    { product_name: "신라면 멀티팩",     category: "식품",          total_amount: 1250000, total_quantity: 312 },
-    { product_name: "코카콜라 500ml",    category: "음료",          total_amount: 1120000, total_quantity: 640 },
-    { product_name: "삼각김밥 참치마요", category: "도시락/간편식", total_amount: 980000,  total_quantity: 780 },
-    { product_name: "바나나맛 우유",     category: "유제품",        total_amount: 870000,  total_quantity: 580 },
-    { product_name: "CU 도시락 불고기",  category: "도시락/간편식", total_amount: 820000,  total_quantity: 205 },
-    { product_name: "포카칩 오리지널",   category: "과자/스낵",     total_amount: 750000,  total_quantity: 420 },
-    { product_name: "아메리카노 ICE",    category: "음료",          total_amount: 680000,  total_quantity: 453 },
-  ],
-  "2023-12": [
-    { product_name: "코카콜라 500ml",    category: "음료",          total_amount: 1450000, total_quantity: 806 },
-    { product_name: "신라면 멀티팩",     category: "식품",          total_amount: 1380000, total_quantity: 345 },
-    { product_name: "CU 도시락 불고기",  category: "도시락/간편식", total_amount: 1120000, total_quantity: 249 },
-    { product_name: "빼빼로 초코",       category: "과자/스낵",     total_amount: 950000,  total_quantity: 633 },
-    { product_name: "아메리카노 ICE",    category: "음료",          total_amount: 820000,  total_quantity: 547 },
-    { product_name: "바나나맛 우유",     category: "유제품",        total_amount: 780000,  total_quantity: 520 },
-    { product_name: "삼각김밥 참치마요", category: "도시락/간편식", total_amount: 740000,  total_quantity: 617 },
-  ],
-  "2024-03": [
-    { product_name: "코카콜라 500ml",    category: "음료",          total_amount: 1180000, total_quantity: 656 },
-    { product_name: "신라면 멀티팩",     category: "식품",          total_amount: 1150000, total_quantity: 287 },
-    { product_name: "삼각김밥 참치마요", category: "도시락/간편식", total_amount: 1020000, total_quantity: 850 },
-    { product_name: "아메리카노 ICE",    category: "음료",          total_amount: 920000,  total_quantity: 613 },
-    { product_name: "바나나맛 우유",     category: "유제품",        total_amount: 860000,  total_quantity: 573 },
-    { product_name: "CU 도시락 불고기",  category: "도시락/간편식", total_amount: 810000,  total_quantity: 180 },
-    { product_name: "포카칩 오리지널",   category: "과자/스낵",     total_amount: 720000,  total_quantity: 360 },
-  ],
-};
+type WeatherApiItem = { date: string; avg_temp: number | null; condition: string | null; precipitation: number | null };
+type EventApiItem = { id: number; user_id: number; event_date: string; event_type: string; description: string; created_at: string };
 
-const BASE_CATEGORY_STATS = [
-  { category: "음료",          percentage: 28.5 },
-  { category: "도시락/간편식", percentage: 22.8 },
-  { category: "과자/스낵",     percentage: 17.4 },
-  { category: "유제품",        percentage: 10.7 },
-  { category: "생활용품",      percentage: 9.4  },
-  { category: "담배",          percentage: 7.0  },
-  { category: "기타",          percentage: 4.2  },
-];
+function groupWeatherByMonth(weatherData: WeatherApiItem[]): Record<string, WeatherInfo> {
+  const groups: Record<string, WeatherApiItem[]> = {};
+  for (const w of weatherData) {
+    const key = w.date.slice(0, 7); // "2026-03"
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(w);
+  }
+  const result: Record<string, WeatherInfo> = {};
+  for (const [key, items] of Object.entries(groups)) {
+    const avgTemp = items.reduce((sum, w) => sum + (w.avg_temp || 0), 0) / items.length;
+    const totalPrecip = items.reduce((sum, w) => sum + (w.precipitation || 0), 0);
+    const conditions = items.map(w => w.condition).filter(Boolean) as string[];
+    const conditionCount: Record<string, number> = {};
+    conditions.forEach(c => { conditionCount[c] = (conditionCount[c] || 0) + 1; });
+    const topCondition = Object.entries(conditionCount).sort((a, b) => b[1] - a[1])[0]?.[0] || "sunny";
 
-const makeCategoryStats = (total: number) =>
-  BASE_CATEGORY_STATS.map((c) => ({
-    category: c.category,
-    total_amount: Math.round(total * c.percentage / 100),
-    percentage: c.percentage,
-  }));
+    result[key] = {
+      avgTemp: Math.round(avgTemp * 10) / 10,
+      condition: topCondition as WeatherInfo["condition"],
+      ...(totalPrecip > 0 ? { precipitation: Math.round(totalPrecip * 10) / 10 } : {}),
+    };
+  }
+  return result;
+}
 
-// TODO: GET /api/analysis/monthly (+ weather/events 병합)
-const mockMonthlyData: MonthlyWithMeta[] = [
-  { month: "2023-07", label: "23/07", total_amount: 22500000, total_quantity: 5800,
-    weather: { avgTemp: 28.5, condition: "sunny"  }, events: [] },
-  { month: "2023-08", label: "23/08", total_amount: 25300000, total_quantity: 6200,
-    weather: { avgTemp: 30.2, condition: "rainy", precipitation: 8.5 },
-    events: [{ name: "여름방학", type: "school" }] },
-  { month: "2023-09", label: "23/09", total_amount: 23800000, total_quantity: 5900,
-    weather: { avgTemp: 22.1, condition: "sunny"  },
-    events: [{ name: "개학", type: "school", date: "9/4" }, { name: "추석", type: "holiday", date: "9/28" }] },
-  { month: "2023-10", label: "23/10", total_amount: 26100000, total_quantity: 6500,
-    weather: { avgTemp: 15.8, condition: "cloudy" },
-    events: [{ name: "할로윈", type: "local", date: "10/31" }] },
-  { month: "2023-11", label: "23/11", total_amount: 27400000, total_quantity: 6800,
-    weather: { avgTemp: 8.2,  condition: "cloudy" },
-    events: [{ name: "수능", type: "school", date: "11/16" }] },
-  { month: "2023-12", label: "23/12", total_amount: 31200000, total_quantity: 7500,
-    weather: { avgTemp: 1.5,  condition: "snowy"  },
-    events: [{ name: "크리스마스", type: "holiday", date: "12/25" }, { name: "연말 행사", type: "local" }] },
-  { month: "2024-01", label: "24/01", total_amount: 28900000, total_quantity: 7100,
-    weather: { avgTemp: -2.1, condition: "snowy"  },
-    events: [{ name: "신정", type: "holiday", date: "1/1" }, { name: "설날", type: "holiday", date: "2/10" }] },
-  { month: "2024-02", label: "24/02", total_amount: 26500000, total_quantity: 6600,
-    weather: { avgTemp: 3.8,  condition: "cloudy" },
-    events: [{ name: "졸업식", type: "school" }] },
-  { month: "2024-03", label: "24/03", total_amount: 28456000, total_quantity: 6900,
-    weather: { avgTemp: 10.5, condition: "sunny"  },
-    events: [{ name: "삼일절", type: "holiday", date: "3/1" }, { name: "입학", type: "school", date: "3/4" }] },
-];
+function groupEventsByMonth(events: EventApiItem[]): Record<string, EventInfo[]> {
+  const result: Record<string, EventInfo[]> = {};
+  for (const e of events) {
+    const key = e.event_date.slice(0, 7);
+    if (!result[key]) result[key] = [];
+    const [mm, dd] = e.event_date.slice(5).split("-");
+    result[key].push({
+      name: e.description,
+      type: e.event_type as EventInfo["type"],
+      date: `${parseInt(mm)}/${parseInt(dd)}`,
+    });
+  }
+  return result;
+}
 
-// TODO: GET /api/analysis/weekly (+ weather/events/products/categories 병합)
-const mockWeeklyData: WeeklyWithMeta[] = [
-  {
-    week: "2025-W51", label: "12/15~21", total_amount: 7200000, total_quantity: 1850,
-    weather: { avgTemp: 2.1,  condition: "cloudy" }, events: [],
-    topProducts: [
-      { product_name: "신라면 멀티팩",     total_amount: 420000, total_quantity: 105 },
-      { product_name: "코카콜라 500ml",    total_amount: 380000, total_quantity: 211 },
-      { product_name: "삼각김밥 참치마요", total_amount: 310000, total_quantity: 258 },
-      { product_name: "바나나맛 우유",     total_amount: 290000, total_quantity: 193 },
-      { product_name: "컵라면 육개장",     total_amount: 260000, total_quantity: 216 },
-    ],
-    categoryStats: makeCategoryStats(7200000),
-  },
-  {
-    week: "2025-W52", label: "12/22~28", total_amount: 9200000, total_quantity: 2300,
-    weather: { avgTemp: 0.8, condition: "snowy" },
-    events: [{ name: "크리스마스", type: "holiday", date: "12/25" }],
-    topProducts: [
-      { product_name: "코카콜라 500ml",   total_amount: 520000, total_quantity: 289 },
-      { product_name: "CU 도시락 불고기", total_amount: 450000, total_quantity: 100 },
-      { product_name: "신라면 멀티팩",    total_amount: 390000, total_quantity: 97  },
-      { product_name: "빼빼로 초코",      total_amount: 320000, total_quantity: 213 },
-      { product_name: "아메리카노 ICE",   total_amount: 280000, total_quantity: 187 },
-    ],
-    categoryStats: makeCategoryStats(9200000),
-  },
-  {
-    week: "2026-W01", label: "12/29~1/4", total_amount: 8800000, total_quantity: 2200,
-    weather: { avgTemp: -1.2, condition: "snowy" },
-    events: [{ name: "신정", type: "holiday", date: "1/1" }],
-    topProducts: [
-      { product_name: "신라면 멀티팩",    total_amount: 480000, total_quantity: 120 },
-      { product_name: "코카콜라 500ml",   total_amount: 420000, total_quantity: 233 },
-      { product_name: "삼다수 2L",        total_amount: 350000, total_quantity: 291 },
-      { product_name: "바나나맛 우유",    total_amount: 310000, total_quantity: 207 },
-      { product_name: "컵라면 육개장",    total_amount: 290000, total_quantity: 241 },
-    ],
-    categoryStats: makeCategoryStats(8800000),
-  },
-  {
-    week: "2026-W02", label: "1/5~11", total_amount: 7100000, total_quantity: 1780,
-    weather: { avgTemp: -0.5, condition: "sunny" }, events: [],
-    topProducts: [
-      { product_name: "코카콜라 500ml",    total_amount: 390000, total_quantity: 217 },
-      { product_name: "신라면 멀티팩",     total_amount: 360000, total_quantity: 90  },
-      { product_name: "삼각김밥 참치마요", total_amount: 300000, total_quantity: 250 },
-      { product_name: "아메리카노 ICE",    total_amount: 280000, total_quantity: 187 },
-      { product_name: "바나나맛 우유",     total_amount: 260000, total_quantity: 173 },
-    ],
-    categoryStats: makeCategoryStats(7100000),
-  },
-  {
-    week: "2026-W03", label: "1/12~18", total_amount: 7400000, total_quantity: 1900,
-    weather: { avgTemp: 1.2, condition: "cloudy" }, events: [],
-    topProducts: [
-      { product_name: "신라면 멀티팩",     total_amount: 410000, total_quantity: 102 },
-      { product_name: "코카콜라 500ml",    total_amount: 370000, total_quantity: 206 },
-      { product_name: "CU 도시락 불고기",  total_amount: 330000, total_quantity: 73  },
-      { product_name: "삼각김밥 참치마요", total_amount: 295000, total_quantity: 246 },
-      { product_name: "포카칩 오리지널",   total_amount: 260000, total_quantity: 130 },
-    ],
-    categoryStats: makeCategoryStats(7400000),
-  },
-  {
-    week: "2026-W04", label: "1/19~25", total_amount: 8500000, total_quantity: 2150,
-    weather: { avgTemp: -3.5, condition: "snowy" },
-    events: [{ name: "설날 연휴", type: "holiday", date: "1/28" }],
-    topProducts: [
-      { product_name: "코카콜라 500ml",   total_amount: 450000, total_quantity: 250 },
-      { product_name: "신라면 멀티팩",    total_amount: 440000, total_quantity: 110 },
-      { product_name: "삼다수 2L",        total_amount: 380000, total_quantity: 317 },
-      { product_name: "바나나맛 우유",    total_amount: 320000, total_quantity: 213 },
-      { product_name: "빼빼로 초코",      total_amount: 290000, total_quantity: 193 },
-    ],
-    categoryStats: makeCategoryStats(8500000),
-  },
-  {
-    week: "2026-W05", label: "1/26~2/1", total_amount: 7900000, total_quantity: 1980,
-    weather: { avgTemp: -1.8, condition: "sunny" },
-    events: [{ name: "설날", type: "holiday", date: "1/29" }],
-    topProducts: [
-      { product_name: "신라면 멀티팩",     total_amount: 430000, total_quantity: 107 },
-      { product_name: "코카콜라 500ml",    total_amount: 400000, total_quantity: 222 },
-      { product_name: "CU 도시락 불고기",  total_amount: 355000, total_quantity: 79  },
-      { product_name: "삼각김밥 참치마요", total_amount: 310000, total_quantity: 258 },
-      { product_name: "아메리카노 ICE",    total_amount: 270000, total_quantity: 180 },
-    ],
-    categoryStats: makeCategoryStats(7900000),
-  },
-  {
-    week: "2026-W06", label: "2/2~8", total_amount: 7300000, total_quantity: 1860,
-    weather: { avgTemp: 2.5, condition: "cloudy" }, events: [],
-    topProducts: [
-      { product_name: "코카콜라 500ml",    total_amount: 385000, total_quantity: 214 },
-      { product_name: "신라면 멀티팩",     total_amount: 360000, total_quantity: 90  },
-      { product_name: "바나나맛 우유",     total_amount: 315000, total_quantity: 210 },
-      { product_name: "삼각김밥 참치마요", total_amount: 290000, total_quantity: 242 },
-      { product_name: "포카칩 오리지널",   total_amount: 255000, total_quantity: 127 },
-    ],
-    categoryStats: makeCategoryStats(7300000),
-  },
-  {
-    week: "2026-W07", label: "2/9~15", total_amount: 7600000, total_quantity: 1950,
-    weather: { avgTemp: 4.8, condition: "sunny" }, events: [],
-    topProducts: [
-      { product_name: "신라면 멀티팩",    total_amount: 400000, total_quantity: 100 },
-      { product_name: "코카콜라 500ml",   total_amount: 395000, total_quantity: 219 },
-      { product_name: "아메리카노 ICE",   total_amount: 345000, total_quantity: 230 },
-      { product_name: "CU 도시락 불고기", total_amount: 315000, total_quantity: 70  },
-      { product_name: "삼다수 2L",        total_amount: 280000, total_quantity: 233 },
-    ],
-    categoryStats: makeCategoryStats(7600000),
-  },
-  {
-    week: "2026-W08", label: "2/16~22", total_amount: 8100000, total_quantity: 2050,
-    weather: { avgTemp: 6.2, condition: "rainy", precipitation: 3.2 }, events: [],
-    topProducts: [
-      { product_name: "코카콜라 500ml",    total_amount: 420000, total_quantity: 233 },
-      { product_name: "신라면 멀티팩",     total_amount: 410000, total_quantity: 102 },
-      { product_name: "삼각김밥 참치마요", total_amount: 355000, total_quantity: 296 },
-      { product_name: "바나나맛 우유",     total_amount: 325000, total_quantity: 217 },
-      { product_name: "컵라면 육개장",     total_amount: 290000, total_quantity: 241 },
-    ],
-    categoryStats: makeCategoryStats(8100000),
-  },
-  {
-    week: "2026-W09", label: "2/23~3/1", total_amount: 7700000, total_quantity: 1960,
-    weather: { avgTemp: 7.8, condition: "cloudy" },
-    events: [{ name: "삼일절", type: "holiday", date: "3/1" }],
-    topProducts: [
-      { product_name: "신라면 멀티팩",     total_amount: 415000, total_quantity: 103 },
-      { product_name: "코카콜라 500ml",    total_amount: 400000, total_quantity: 222 },
-      { product_name: "아메리카노 ICE",    total_amount: 355000, total_quantity: 237 },
-      { product_name: "CU 도시락 불고기",  total_amount: 320000, total_quantity: 71  },
-      { product_name: "삼각김밥 참치마요", total_amount: 285000, total_quantity: 237 },
-    ],
-    categoryStats: makeCategoryStats(7700000),
-  },
-  {
-    week: "2026-W10", label: "3/2~8", total_amount: 7500000, total_quantity: 1900,
-    weather: { avgTemp: 9.5, condition: "sunny" },
-    events: [{ name: "개학", type: "school", date: "3/3" }],
-    topProducts: [
-      { product_name: "코카콜라 500ml",    total_amount: 430000, total_quantity: 239 },
-      { product_name: "신라면 멀티팩",     total_amount: 420000, total_quantity: 105 },
-      { product_name: "삼각김밥 참치마요", total_amount: 380000, total_quantity: 317 },
-      { product_name: "아메리카노 ICE",    total_amount: 335000, total_quantity: 223 },
-      { product_name: "바나나맛 우유",     total_amount: 290000, total_quantity: 193 },
-    ],
-    categoryStats: makeCategoryStats(7500000),
-  },
-];
+function groupWeatherByWeek(weatherData: WeatherApiItem[], weekRanges: Array<{ start: string; end: string }>): Record<string, WeatherInfo> {
+  const result: Record<string, WeatherInfo> = {};
+  for (const range of weekRanges) {
+    const items = weatherData.filter(w => w.date >= range.start && w.date <= range.end);
+    if (items.length === 0) {
+      result[range.start] = { avgTemp: 0, condition: "sunny" };
+      continue;
+    }
+    const avgTemp = items.reduce((sum, w) => sum + (w.avg_temp || 0), 0) / items.length;
+    const totalPrecip = items.reduce((sum, w) => sum + (w.precipitation || 0), 0);
+    const conditions = items.map(w => w.condition).filter(Boolean) as string[];
+    const conditionCount: Record<string, number> = {};
+    conditions.forEach(c => { conditionCount[c] = (conditionCount[c] || 0) + 1; });
+    const topCondition = Object.entries(conditionCount).sort((a, b) => b[1] - a[1])[0]?.[0] || "sunny";
+    result[range.start] = {
+      avgTemp: Math.round(avgTemp * 10) / 10,
+      condition: topCondition as WeatherInfo["condition"],
+      ...(totalPrecip > 0 ? { precipitation: Math.round(totalPrecip * 10) / 10 } : {}),
+    };
+  }
+  return result;
+}
 
-// TODO: GET /api/analysis/hourly?date= + /api/events?date= + /api/analysis/category?date=
-const mockDailyMeta: Record<string, DailyMeta> = {
-  "2026-03-15": {
-    date: "2026-03-15",
-    weather: { avgTemp: 11.2, condition: "sunny" },
-    events: [{ name: "화이트데이", type: "local", date: "3/14" }],
-    categoryStats: makeCategoryStats(1284500),
-    topProducts: [
-      { product_name: "코카콜라 500ml",    category: "음료",          total_amount: 43200,  total_quantity: 24 },
-      { product_name: "삼각김밥 참치마요", category: "도시락/간편식", total_amount: 37200,  total_quantity: 31 },
-      { product_name: "아메리카노 ICE",    category: "음료",          total_amount: 34500,  total_quantity: 23 },
-      { product_name: "신라면 컵",         category: "식품",          total_amount: 31500,  total_quantity: 21 },
-      { product_name: "바나나맛 우유",     category: "유제품",        total_amount: 28500,  total_quantity: 19 },
-      { product_name: "CU 도시락 불고기",  category: "도시락/간편식", total_amount: 27000,  total_quantity: 6  },
-      { product_name: "포카칩 오리지널",   category: "과자/스낵",     total_amount: 22000,  total_quantity: 11 },
-    ],
-  },
-  "2026-03-14": {
-    date: "2026-03-14",
-    weather: { avgTemp: 9.8, condition: "cloudy" },
-    events: [],
-    categoryStats: makeCategoryStats(1186000),
-    topProducts: [
-      { product_name: "신라면 컵",         category: "식품",          total_amount: 40500,  total_quantity: 27 },
-      { product_name: "코카콜라 500ml",    category: "음료",          total_amount: 36000,  total_quantity: 20 },
-      { product_name: "CU 도시락 불고기",  category: "도시락/간편식", total_amount: 31500,  total_quantity: 7  },
-      { product_name: "아메리카노 ICE",    category: "음료",          total_amount: 30000,  total_quantity: 20 },
-      { product_name: "바나나맛 우유",     category: "유제품",        total_amount: 25500,  total_quantity: 17 },
-    ],
-  },
-};
+function groupEventsByWeek(events: EventApiItem[], weekRanges: Array<{ start: string; end: string }>): Record<string, EventInfo[]> {
+  const result: Record<string, EventInfo[]> = {};
+  for (const range of weekRanges) {
+    const items = events.filter(e => e.event_date >= range.start && e.event_date <= range.end);
+    result[range.start] = items.map(e => {
+      const [mm, dd] = e.event_date.slice(5).split("-");
+      return {
+        name: e.description,
+        type: e.event_type as EventInfo["type"],
+        date: `${parseInt(mm)}/${parseInt(dd)}`,
+      };
+    });
+  }
+  return result;
+}
 
-const mockHourlyByDate: Record<string, HourlySales[]> = {
-  // TODO: GET /api/analysis/hourly?date=YYYY-MM-DD (temp 필드는 기상청 시간별 API)
-  "2026-03-15": [
-    { hour: "06", total_amount: 45000,  total_quantity: 12, temp: 7.2  },
-    { hour: "07", total_amount: 125000, total_quantity: 38, temp: 8.1  },
-    { hour: "08", total_amount: 185000, total_quantity: 56, temp: 9.3  },
-    { hour: "09", total_amount: 145000, total_quantity: 44, temp: 10.5 },
-    { hour: "10", total_amount: 92000,  total_quantity: 28, temp: 11.8 },
-    { hour: "11", total_amount: 110000, total_quantity: 33, temp: 12.9 },
-    { hour: "12", total_amount: 210000, total_quantity: 65, temp: 13.6 },
-    { hour: "13", total_amount: 175000, total_quantity: 54, temp: 14.2 },
-    { hour: "14", total_amount: 88000,  total_quantity: 27, temp: 14.8 },
-    { hour: "15", total_amount: 95000,  total_quantity: 29, temp: 14.5 },
-    { hour: "16", total_amount: 125000, total_quantity: 38, temp: 13.9 },
-    { hour: "17", total_amount: 165000, total_quantity: 50, temp: 12.7 },
-    { hour: "18", total_amount: 225000, total_quantity: 68, temp: 11.4 },
-    { hour: "19", total_amount: 195000, total_quantity: 59, temp: 10.2 },
-    { hour: "20", total_amount: 145000, total_quantity: 44, temp: 9.1  },
-    { hour: "21", total_amount: 85000,  total_quantity: 26, temp: 8.5  },
-    { hour: "22", total_amount: 55000,  total_quantity: 17, temp: 8.0  },
-    { hour: "23", total_amount: 25000,  total_quantity: 8,  temp: 7.6  },
-  ],
-  "2026-03-14": [
-    { hour: "06", total_amount: 38000,  total_quantity: 10, temp: 5.8  },
-    { hour: "07", total_amount: 112000, total_quantity: 34, temp: 6.5  },
-    { hour: "08", total_amount: 170000, total_quantity: 52, temp: 7.8  },
-    { hour: "09", total_amount: 135000, total_quantity: 41, temp: 9.0  },
-    { hour: "10", total_amount: 85000,  total_quantity: 26, temp: 10.2 },
-    { hour: "11", total_amount: 105000, total_quantity: 32, temp: 11.4 },
-    { hour: "12", total_amount: 195000, total_quantity: 60, temp: 12.1 },
-    { hour: "13", total_amount: 162000, total_quantity: 49, temp: 12.8 },
-    { hour: "14", total_amount: 80000,  total_quantity: 24, temp: 13.2 },
-    { hour: "15", total_amount: 90000,  total_quantity: 27, temp: 13.0 },
-    { hour: "16", total_amount: 118000, total_quantity: 36, temp: 12.2 },
-    { hour: "17", total_amount: 155000, total_quantity: 47, temp: 11.1 },
-    { hour: "18", total_amount: 218000, total_quantity: 66, temp: 9.8  },
-    { hour: "19", total_amount: 185000, total_quantity: 56, temp: 8.9  },
-    { hour: "20", total_amount: 138000, total_quantity: 42, temp: 8.2  },
-    { hour: "21", total_amount: 78000,  total_quantity: 24, temp: 7.5  },
-    { hour: "22", total_amount: 48000,  total_quantity: 15, temp: 7.0  },
-    { hour: "23", total_amount: 22000,  total_quantity: 7,  temp: 6.6  },
-  ],
-};
+/** 일별 데이터를 주 단위(월요일 기준)로 그룹핑 */
+function groupDailyByWeek(dailyData: Array<{ date: string; total_amount: number; total_quantity: number }>): Array<{
+  start: string; end: string; label: string; week: string;
+  total_amount: number; total_quantity: number;
+}> {
+  if (dailyData.length === 0) return [];
+  const sorted = [...dailyData].sort((a, b) => a.date.localeCompare(b.date));
+  const weeks: Array<{ start: string; end: string; label: string; week: string; total_amount: number; total_quantity: number }> = [];
+  let currentWeekStart: Date | null = null;
+  let currentGroup: typeof dailyData = [];
 
-const defaultHourly: HourlySales[] = [
-  { hour: "06", total_amount: 40000,  total_quantity: 11, temp: 6.5  },
-  { hour: "07", total_amount: 108000, total_quantity: 33, temp: 7.3  },
-  { hour: "08", total_amount: 162000, total_quantity: 49, temp: 8.6  },
-  { hour: "09", total_amount: 128000, total_quantity: 39, temp: 9.8  },
-  { hour: "10", total_amount: 82000,  total_quantity: 25, temp: 11.0 },
-  { hour: "11", total_amount: 100000, total_quantity: 30, temp: 12.2 },
-  { hour: "12", total_amount: 192000, total_quantity: 58, temp: 13.0 },
-  { hour: "13", total_amount: 158000, total_quantity: 48, temp: 13.5 },
-  { hour: "14", total_amount: 78000,  total_quantity: 24, temp: 13.8 },
-  { hour: "15", total_amount: 88000,  total_quantity: 27, temp: 13.4 },
-  { hour: "16", total_amount: 112000, total_quantity: 34, temp: 12.6 },
-  { hour: "17", total_amount: 152000, total_quantity: 46, temp: 11.5 },
-  { hour: "18", total_amount: 208000, total_quantity: 63, temp: 10.3 },
-  { hour: "19", total_amount: 178000, total_quantity: 54, temp: 9.4  },
-  { hour: "20", total_amount: 132000, total_quantity: 40, temp: 8.7  },
-  { hour: "21", total_amount: 75000,  total_quantity: 23, temp: 8.1  },
-  { hour: "22", total_amount: 46000,  total_quantity: 14, temp: 7.6  },
-  { hour: "23", total_amount: 20000,  total_quantity: 6,  temp: 7.2  },
-];
+  for (const d of sorted) {
+    const date = new Date(d.date + "T00:00:00");
+    const dayOfWeek = date.getDay();
+    // 월요일 기준 주 시작
+    const mondayOffset = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    const monday = new Date(date);
+    monday.setDate(date.getDate() - mondayOffset);
+
+    if (!currentWeekStart || monday.getTime() !== currentWeekStart.getTime()) {
+      if (currentWeekStart && currentGroup.length > 0) {
+        const sunday = new Date(currentWeekStart);
+        sunday.setDate(currentWeekStart.getDate() + 6);
+        const startMM = currentWeekStart.getMonth() + 1;
+        const startDD = currentWeekStart.getDate();
+        const endMM = sunday.getMonth() + 1;
+        const endDD = sunday.getDate();
+        const label = startMM === endMM
+          ? `${startMM}/${startDD}~${endDD}`
+          : `${startMM}/${startDD}~${endMM}/${endDD}`;
+        const isoYear = currentWeekStart.getFullYear();
+        const weekNum = getISOWeekNumber(currentWeekStart);
+        weeks.push({
+          start: formatDateStr(currentWeekStart),
+          end: formatDateStr(sunday),
+          label,
+          week: `${isoYear}-W${String(weekNum).padStart(2, "0")}`,
+          total_amount: currentGroup.reduce((s, x) => s + x.total_amount, 0),
+          total_quantity: currentGroup.reduce((s, x) => s + x.total_quantity, 0),
+        });
+      }
+      currentWeekStart = monday;
+      currentGroup = [];
+    }
+    currentGroup.push(d);
+  }
+
+  // 마지막 그룹
+  if (currentWeekStart && currentGroup.length > 0) {
+    const sunday = new Date(currentWeekStart);
+    sunday.setDate(currentWeekStart.getDate() + 6);
+    const startMM = currentWeekStart.getMonth() + 1;
+    const startDD = currentWeekStart.getDate();
+    const endMM = sunday.getMonth() + 1;
+    const endDD = sunday.getDate();
+    const label = startMM === endMM
+      ? `${startMM}/${startDD}~${endDD}`
+      : `${startMM}/${startDD}~${endMM}/${endDD}`;
+    const isoYear = currentWeekStart.getFullYear();
+    const weekNum = getISOWeekNumber(currentWeekStart);
+    weeks.push({
+      start: formatDateStr(currentWeekStart),
+      end: formatDateStr(sunday),
+      label,
+      week: `${isoYear}-W${String(weekNum).padStart(2, "0")}`,
+      total_amount: currentGroup.reduce((s, x) => s + x.total_amount, 0),
+      total_quantity: currentGroup.reduce((s, x) => s + x.total_quantity, 0),
+    });
+  }
+
+  return weeks;
+}
+
+function getISOWeekNumber(date: Date): number {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+}
+
+function formatDateStr(d: Date): string {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+// ─────────────────────────────────────────────────────────────
+// 로딩 스피너
+// ─────────────────────────────────────────────────────────────
+function LoadingSpinner() {
+  return (
+    <div className="flex items-center justify-center py-20">
+      <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-500 border-t-transparent" />
+      <span className="ml-3 text-sm text-gray-500">데이터를 불러오는 중...</span>
+    </div>
+  );
+}
 
 // ─────────────────────────────────────────────────────────────
 // Sub-Components
@@ -377,7 +232,7 @@ function WeatherBadge({ condition, avgTemp }: { condition: keyof typeof WEATHER_
   const wc = WEATHER_CONFIG[condition];
   return (
     <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium ${wc.bg} ${wc.text}`}>
-      {wc.icon} {wc.label} {avgTemp}°C
+      {wc.icon} {wc.label} {avgTemp}\u00B0C
     </span>
   );
 }
@@ -412,7 +267,7 @@ const MonthWeatherTick = (props: {
         <>
           <text x={0} y={0} dy={30} textAnchor="middle" fontSize={13}>{wc.icon}</text>
           <text x={0} y={0} dy={44} textAnchor="middle" fill={wc.svgColor} fontSize={9}>
-            {meta.weather.avgTemp}°C
+            {meta.weather.avgTemp}\u00B0C
           </text>
         </>
       )}
@@ -439,7 +294,7 @@ const WeekWeatherTick = (props: {
         <>
           <text x={0} y={0} dy={32} textAnchor="middle" fontSize={12}>{wc.icon}</text>
           <text x={0} y={0} dy={45} textAnchor="middle" fill={wc.svgColor} fontSize={9}>
-            {meta.weather.avgTemp}°C
+            {meta.weather.avgTemp}\u00B0C
           </text>
         </>
       )}
@@ -488,7 +343,7 @@ function MonthlyTooltip({ active, payload, metaList }: {
     <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-xl text-xs min-w-[160px]">
       <p className="mb-2 font-bold text-gray-800">{label}</p>
       <p className="mb-1 text-gray-600">매출 <span className="font-semibold text-gray-900">{total_amount.toLocaleString()}원</span></p>
-      <p className={`mb-1 ${wc.text}`}>{wc.icon} {wc.label} {meta.weather.avgTemp}°C</p>
+      <p className={`mb-1 ${wc.text}`}>{wc.icon} {wc.label} {meta.weather.avgTemp}\u00B0C</p>
       {meta.events.length > 0 && (
         <div className="flex flex-wrap gap-1 mt-1">
           {meta.events.map((ev, i) => {
@@ -520,7 +375,7 @@ function WeeklyTooltip({ active, payload, metaList }: {
     <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-xl text-xs min-w-[160px]">
       <p className="mb-2 font-bold text-gray-800">{label}</p>
       <p className="mb-1 text-gray-600">매출 <span className="font-semibold text-gray-900">{total_amount.toLocaleString()}원</span></p>
-      <p className={`mb-1 ${wc.text}`}>{wc.icon} {wc.label} {meta.weather.avgTemp}°C</p>
+      <p className={`mb-1 ${wc.text}`}>{wc.icon} {wc.label} {meta.weather.avgTemp}\u00B0C</p>
       {meta.events.length > 0 && (
         <div className="flex flex-wrap gap-1 mt-1">
           {meta.events.map((ev, i) => {
@@ -549,24 +404,242 @@ const TABS: { key: AnalysisTab; label: string }[] = [
 ];
 
 export default function AnalysisPage() {
-  const [activeTab, setActiveTab]       = useState<AnalysisTab>("monthly");
-  const [selectedMonthIdx, setSelectedMonthIdx] = useState(mockMonthlyData.length - 1);
-  const [selectedWeekIdx,  setSelectedWeekIdx]  = useState(mockWeeklyData.length - 1);
-  const [selectedDate, setSelectedDate] = useState("2026-03-15");
+  const [activeTab, setActiveTab] = useState<AnalysisTab>("monthly");
+  const [loading, setLoading] = useState(true);
 
-  // monthly lookup map
-  const monthMetaMap = Object.fromEntries(mockMonthlyData.map(m => [m.label, m]));
-  const weekMetaMap  = Object.fromEntries(mockWeeklyData.map(w => [w.label, w]));
+  // 월별 탭 데이터
+  const [monthlyData, setMonthlyData] = useState<MonthlyWithMeta[]>([]);
+  const [selectedMonthIdx, setSelectedMonthIdx] = useState(0);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [monthTopProducts, setMonthTopProducts] = useState<Array<{ name: string; category: string; total_amount: number; total_quantity: number }>>([]);
+  const [monthCategoryStats, setMonthCategoryStats] = useState<CategorySales[]>([]);
+  const [monthDetailLoading, setMonthDetailLoading] = useState(false);
 
-  const hourlyData  = mockHourlyByDate[selectedDate] ?? defaultHourly;
-  const dailyMeta   = mockDailyMeta[selectedDate];
-  const dayTotal    = hourlyData.reduce((s, h) => s + h.total_amount, 0);
+  // 주별 탭 데이터
+  const [weeklyData, setWeeklyData] = useState<WeeklyWithMeta[]>([]);
+  const [selectedWeekIdx, setSelectedWeekIdx] = useState(0);
+
+  // 일별 탭 데이터
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
+  const [hourlyData, setHourlyData] = useState<HourlySales[]>([]);
+  const [dailyMeta, setDailyMeta] = useState<DailyMeta | null>(null);
+
+  // ── 월별 데이터 로딩 ──
+  const loadMonthlyData = useCallback(async (year: number) => {
+    setLoading(true);
+    try {
+      const [monthlyRes, weatherRes, eventsRes] = await Promise.all([
+        analysisApi.getMonthly(year),
+        weatherApi.getRange(`${year}-01-01`, `${year}-12-31`).catch(() => ({ data: [] as WeatherApiItem[] })),
+        eventsApi.getAll().catch(() => ({ data: [] as EventApiItem[] })),
+      ]);
+
+      const monthly = monthlyRes.data;
+      const weatherByMonth = groupWeatherByMonth(weatherRes.data);
+      const eventsByMonth = groupEventsByMonth(eventsRes.data);
+
+      const merged: MonthlyWithMeta[] = monthly.map(m => {
+        const key = `${m.year}-${String(m.month).padStart(2, "0")}`;
+        const label = `${String(m.year).slice(2)}/${String(m.month).padStart(2, "0")}`;
+        return {
+          month: key,
+          label,
+          total_amount: m.total_amount,
+          total_quantity: m.total_quantity,
+          weather: weatherByMonth[key] || { avgTemp: 0, condition: "sunny" as const },
+          events: eventsByMonth[key] || [],
+        };
+      });
+      setMonthlyData(merged);
+      if (merged.length > 0) {
+        setSelectedMonthIdx(merged.length - 1);
+      }
+    } catch (err) {
+      console.error("월별 데이터 로딩 실패:", err);
+      setMonthlyData([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // ── 선택된 월 상세 데이터 로딩 (상위상품 + 카테고리) ──
+  const loadMonthDetail = useCallback(async (monthKey: string) => {
+    setMonthDetailLoading(true);
+    try {
+      const [y, m] = monthKey.split("-");
+      const startDate = `${y}-${m}-01`;
+      const lastDay = new Date(parseInt(y), parseInt(m), 0).getDate();
+      const endDate = `${y}-${m}-${String(lastDay).padStart(2, "0")}`;
+
+      const [topRes, catRes] = await Promise.all([
+        analysisApi.getTopProducts(7, startDate, endDate).catch(() => ({ data: [] as TopProduct[] })),
+        analysisApi.getCategory(startDate, endDate).catch(() => ({ data: [] as CategorySales[] })),
+      ]);
+
+      setMonthTopProducts(topRes.data.map(p => ({
+        name: p.name,
+        category: (p as unknown as { category?: string }).category || "기타",
+        total_amount: p.total_amount,
+        total_quantity: p.total_quantity,
+      })));
+      setMonthCategoryStats(catRes.data.map(c => ({
+        category: c.category,
+        total_amount: c.total_amount,
+        percentage: c.percentage,
+      })));
+    } catch (err) {
+      console.error("월별 상세 데이터 로딩 실패:", err);
+      setMonthTopProducts([]);
+      setMonthCategoryStats([]);
+    } finally {
+      setMonthDetailLoading(false);
+    }
+  }, []);
+
+  // ── 주별 데이터 로딩 (최근 12주) ──
+  const loadWeeklyData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const endDate = new Date().toISOString().split("T")[0];
+      const startDateObj = new Date(Date.now() - 84 * 24 * 60 * 60 * 1000);
+      const startDate = startDateObj.toISOString().split("T")[0];
+
+      const [dailyRes, weatherRes, eventsRes, categoryRes, topProductsRes] = await Promise.all([
+        analysisApi.getDaily(startDate, endDate),
+        weatherApi.getRange(startDate, endDate).catch(() => ({ data: [] as WeatherApiItem[] })),
+        eventsApi.getAll().catch(() => ({ data: [] as EventApiItem[] })),
+        analysisApi.getCategory(startDate, endDate).catch(() => ({ data: [] as CategorySales[] })),
+        analysisApi.getTopProducts(5, startDate, endDate).catch(() => ({ data: [] as TopProduct[] })),
+      ]);
+
+      const weekGroups = groupDailyByWeek(dailyRes.data);
+      const weekRanges = weekGroups.map(w => ({ start: w.start, end: w.end }));
+      const weatherByWeek = groupWeatherByWeek(weatherRes.data, weekRanges);
+      const eventsByWeek = groupEventsByWeek(eventsRes.data, weekRanges);
+
+      // 전체 기간 카테고리/상품을 모든 주에 공유 (N+1 문제 방지)
+      const sharedCategoryStats: CategorySales[] = categoryRes.data.map(c => ({
+        category: c.category,
+        total_amount: c.total_amount,
+        percentage: c.percentage,
+      }));
+      const sharedTopProducts: TopProduct[] = topProductsRes.data;
+
+      const merged: WeeklyWithMeta[] = weekGroups.map(wg => ({
+        week: wg.week,
+        label: wg.label,
+        total_amount: wg.total_amount,
+        total_quantity: wg.total_quantity,
+        weather: weatherByWeek[wg.start] || { avgTemp: 0, condition: "sunny" as const },
+        events: eventsByWeek[wg.start] || [],
+        topProducts: sharedTopProducts,
+        categoryStats: sharedCategoryStats,
+      }));
+
+      setWeeklyData(merged);
+      if (merged.length > 0) {
+        setSelectedWeekIdx(merged.length - 1);
+      }
+    } catch (err) {
+      console.error("주별 데이터 로딩 실패:", err);
+      setWeeklyData([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // ── 일별/시간대별 데이터 로딩 ──
+  const loadDailyData = useCallback(async (date: string) => {
+    setLoading(true);
+    try {
+      const [hourlyRes, weatherRes, eventsRes, topRes, catRes] = await Promise.all([
+        analysisApi.getHourly(date).catch(() => ({ data: [] as Array<{ hour: number; total_amount: number; total_quantity: number }> })),
+        weatherApi.getDaily(date).catch(() => ({ data: null })),
+        eventsApi.getAll().catch(() => ({ data: [] as EventApiItem[] })),
+        analysisApi.getTopProducts(7, date, date).catch(() => ({ data: [] as TopProduct[] })),
+        analysisApi.getCategory(date, date).catch(() => ({ data: [] as CategorySales[] })),
+      ]);
+
+      // 시간별 데이터 변환 (hour: number -> string)
+      const convertedHourly: HourlySales[] = hourlyRes.data.map(h => ({
+        hour: String(h.hour).padStart(2, "0"),
+        total_amount: h.total_amount,
+        total_quantity: h.total_quantity,
+      }));
+      setHourlyData(convertedHourly);
+
+      // 이벤트 필터링
+      const dayEvents: EventInfo[] = (eventsRes.data as EventApiItem[])
+        .filter(e => e.event_date === date)
+        .map(e => {
+          const [mm, dd] = e.event_date.slice(5).split("-");
+          return {
+            name: e.description,
+            type: e.event_type as EventInfo["type"],
+            date: `${parseInt(mm)}/${parseInt(dd)}`,
+          };
+        });
+
+      // 날씨 구성
+      const weatherData = weatherRes.data as { avg_temp: number | null; condition: string | null; precipitation: number | null } | null;
+      const weather: WeatherInfo = weatherData ? {
+        avgTemp: weatherData.avg_temp || 0,
+        condition: (weatherData.condition || "sunny") as WeatherInfo["condition"],
+        ...(weatherData.precipitation ? { precipitation: weatherData.precipitation } : {}),
+      } : { avgTemp: 0, condition: "sunny" as const };
+
+      setDailyMeta({
+        date,
+        weather,
+        events: dayEvents,
+        topProducts: topRes.data.map(p => ({
+          ...p,
+          category: (p as unknown as { category?: string }).category || "기타",
+        })),
+        categoryStats: catRes.data.map(c => ({
+          category: c.category,
+          total_amount: c.total_amount,
+          percentage: c.percentage,
+        })),
+      });
+    } catch (err) {
+      console.error("일별 데이터 로딩 실패:", err);
+      setHourlyData([]);
+      setDailyMeta(null);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // ── 탭 전환 시 데이터 로딩 ──
+  useEffect(() => {
+    if (activeTab === "monthly") {
+      loadMonthlyData(selectedYear);
+    } else if (activeTab === "weekly") {
+      loadWeeklyData();
+    } else if (activeTab === "daily") {
+      loadDailyData(selectedDate);
+    }
+  }, [activeTab, selectedYear, loadMonthlyData, loadWeeklyData, loadDailyData, selectedDate]);
+
+  // ── 선택된 월 변경 시 상세 데이터 로딩 ──
+  useEffect(() => {
+    if (activeTab === "monthly" && monthlyData.length > 0 && monthlyData[selectedMonthIdx]) {
+      loadMonthDetail(monthlyData[selectedMonthIdx].month);
+    }
+  }, [activeTab, selectedMonthIdx, monthlyData, loadMonthDetail]);
+
+  // lookup maps
+  const monthMetaMap = Object.fromEntries(monthlyData.map(m => [m.label, m]));
+  const weekMetaMap  = Object.fromEntries(weeklyData.map(w => [w.label, w]));
+
+  const dayTotal = hourlyData.reduce((s, h) => s + h.total_amount, 0);
 
   const MonthBarShape = makeBarShape(
-    Object.fromEntries(mockMonthlyData.map(m => [m.label, m]))
+    Object.fromEntries(monthlyData.map(m => [m.label, m]))
   );
   const WeekBarShape = makeBarShape(
-    Object.fromEntries(mockWeeklyData.map(w => [w.label, w]))
+    Object.fromEntries(weeklyData.map(w => [w.label, w]))
   );
 
   return (
@@ -588,15 +661,38 @@ export default function AnalysisPage() {
 
       {/* ── 월별 탭 ── */}
       {activeTab === "monthly" && (() => {
-        const selectedMonth = mockMonthlyData[selectedMonthIdx];
-        const monthTopProducts = MONTHLY_TOP_PRODUCTS[selectedMonth.month] ?? MONTHLY_TOP_PRODUCTS.default;
-        const monthCategoryStats = makeCategoryStats(selectedMonth.total_amount);
-        const chartData = mockMonthlyData.map(m => ({
-          label: m.label, total_amount: m.total_amount, avgTemp: m.weather.avgTemp,
+        if (loading) return <LoadingSpinner />;
+        if (monthlyData.length === 0) {
+          return (
+            <div className="rounded-xl bg-white p-10 text-center shadow-sm border border-gray-100">
+              <p className="text-sm text-gray-500">해당 연도의 매출 데이터가 없습니다.</p>
+            </div>
+          );
+        }
+        const selectedMonth = monthlyData[selectedMonthIdx];
+        const chartData = monthlyData.map(m => ({
+          label: m.label, total_amount: m.total_amount,
         }));
 
         return (
           <div className="space-y-6">
+            {/* Year Selector */}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setSelectedYear(y => y - 1)}
+                className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
+              >
+                &larr; {selectedYear - 1}
+              </button>
+              <span className="text-sm font-semibold text-gray-800">{selectedYear}년</span>
+              <button
+                onClick={() => setSelectedYear(y => y + 1)}
+                className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
+              >
+                {selectedYear + 1} &rarr;
+              </button>
+            </div>
+
             {/* Chart */}
             <div className="rounded-xl bg-white p-5 shadow-sm border border-gray-100">
               <div className="mb-2 flex items-center justify-between">
@@ -622,19 +718,9 @@ export default function AnalysisPage() {
                       tick={(p) => <MonthWeatherTick {...p} metaMap={monthMetaMap} />}
                       tickLine={false}
                     />
-                    <YAxis yAxisId="sales" tickFormatter={formatAmount} tick={{ fontSize: 11, fill: "#9ca3af" }} tickLine={false} axisLine={false} />
-                    <YAxis
-                      yAxisId="temp"
-                      orientation="right"
-                      tickFormatter={(v) => `${v}°`}
-                      tick={{ fontSize: 11, fill: "#f97316" }}
-                      tickLine={false}
-                      axisLine={false}
-                      domain={["auto", "auto"]}
-                      width={36}
-                    />
-                    <Tooltip content={<MonthlyTooltip metaList={mockMonthlyData} />} />
-                    <Bar yAxisId="sales" dataKey="total_amount" radius={[4, 4, 0, 0]} maxBarSize={50} shape={MonthBarShape}>
+                    <YAxis tickFormatter={formatAmount} tick={{ fontSize: 11, fill: "#9ca3af" }} tickLine={false} axisLine={false} />
+                    <Tooltip content={<MonthlyTooltip metaList={monthlyData} />} />
+                    <Bar dataKey="total_amount" radius={[4, 4, 0, 0]} maxBarSize={50} shape={MonthBarShape}>
                       {chartData.map((_, idx) => (
                         <Cell key={idx} fill={idx === selectedMonthIdx ? "#1d4ed8" : "#3b82f6"} />
                       ))}
@@ -679,67 +765,82 @@ export default function AnalysisPage() {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-                {/* Category Stats */}
-                <div>
-                  <h4 className="mb-3 text-sm font-semibold text-gray-700">카테고리별 매출</h4>
-                  <div className="space-y-2.5">
-                    {monthCategoryStats.map((cs, idx) => (
-                      <div key={cs.category} className="flex items-center gap-3">
-                        <span className="w-20 shrink-0 text-xs text-gray-500">{cs.category}</span>
-                        <div className="flex-1">
-                          <div className="h-2 w-full rounded-full bg-gray-100">
-                            <div
-                              className="h-2 rounded-full"
-                              style={{
-                                width: `${cs.percentage}%`,
-                                backgroundColor: COLORS[idx % COLORS.length],
-                              }}
-                            />
+              {monthDetailLoading ? (
+                <div className="flex items-center justify-center py-10">
+                  <div className="h-6 w-6 animate-spin rounded-full border-4 border-blue-500 border-t-transparent" />
+                  <span className="ml-2 text-sm text-gray-500">상세 데이터 로딩 중...</span>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+                  {/* Category Stats */}
+                  <div>
+                    <h4 className="mb-3 text-sm font-semibold text-gray-700">카테고리별 매출</h4>
+                    {monthCategoryStats.length === 0 ? (
+                      <p className="text-xs text-gray-400">카테고리 데이터가 없습니다.</p>
+                    ) : (
+                      <div className="space-y-2.5">
+                        {monthCategoryStats.map((cs, idx) => (
+                          <div key={cs.category} className="flex items-center gap-3">
+                            <span className="w-20 shrink-0 text-xs text-gray-500">{cs.category}</span>
+                            <div className="flex-1">
+                              <div className="h-2 w-full rounded-full bg-gray-100">
+                                <div
+                                  className="h-2 rounded-full"
+                                  style={{
+                                    width: `${cs.percentage || 0}%`,
+                                    backgroundColor: COLORS[idx % COLORS.length],
+                                  }}
+                                />
+                              </div>
+                            </div>
+                            <span className="w-16 shrink-0 text-right text-xs font-medium text-gray-700">
+                              {cs.percentage || 0}%
+                            </span>
+                            <span className="w-24 shrink-0 text-right text-xs text-gray-500">
+                              {cs.total_amount.toLocaleString()}원
+                            </span>
                           </div>
-                        </div>
-                        <span className="w-16 shrink-0 text-right text-xs font-medium text-gray-700">
-                          {cs.percentage}%
-                        </span>
-                        <span className="w-24 shrink-0 text-right text-xs text-gray-500">
-                          {cs.total_amount.toLocaleString()}원
-                        </span>
+                        ))}
                       </div>
-                    ))}
+                    )}
+                  </div>
+
+                  {/* Top Products */}
+                  <div>
+                    <h4 className="mb-3 text-sm font-semibold text-gray-700">상위 상품</h4>
+                    {monthTopProducts.length === 0 ? (
+                      <p className="text-xs text-gray-400">상품 데이터가 없습니다.</p>
+                    ) : (
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="border-b border-gray-200 text-gray-400">
+                            <th className="pb-2 pr-2 font-medium">순위</th>
+                            <th className="pb-2 pr-2 font-medium">상품명</th>
+                            <th className="pb-2 pr-2 font-medium">카테고리</th>
+                            <th className="pb-2 text-right font-medium">매출</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {monthTopProducts.map((p, idx) => (
+                            <tr key={idx} className="border-b border-gray-50 text-gray-700">
+                              <td className="py-2 pr-2">
+                                <span className={`inline-flex h-4 w-4 items-center justify-center rounded-full text-xs font-bold ${idx < 3 ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-500"}`}>
+                                  {idx + 1}
+                                </span>
+                              </td>
+                              <td className="py-2 pr-2">{p.name}</td>
+                              <td className="py-2 pr-2">
+                                <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-gray-600">{p.category}</span>
+                              </td>
+                              <td className="py-2 text-right font-medium">{p.total_amount.toLocaleString()}원</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
                   </div>
                 </div>
-
-                {/* Top Products */}
-                <div>
-                  <h4 className="mb-3 text-sm font-semibold text-gray-700">상위 상품</h4>
-                  <table className="w-full text-left text-xs">
-                    <thead>
-                      <tr className="border-b border-gray-200 text-gray-400">
-                        <th className="pb-2 pr-2 font-medium">순위</th>
-                        <th className="pb-2 pr-2 font-medium">상품명</th>
-                        <th className="pb-2 pr-2 font-medium">카테고리</th>
-                        <th className="pb-2 text-right font-medium">매출</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {monthTopProducts.map((p, idx) => (
-                        <tr key={idx} className="border-b border-gray-50 text-gray-700">
-                          <td className="py-2 pr-2">
-                            <span className={`inline-flex h-4 w-4 items-center justify-center rounded-full text-xs font-bold ${idx < 3 ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-500"}`}>
-                              {idx + 1}
-                            </span>
-                          </td>
-                          <td className="py-2 pr-2">{p.product_name}</td>
-                          <td className="py-2 pr-2">
-                            <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-gray-600">{p.category}</span>
-                          </td>
-                          <td className="py-2 text-right font-medium">{p.total_amount.toLocaleString()}원</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+              )}
             </div>
           </div>
         );
@@ -747,8 +848,16 @@ export default function AnalysisPage() {
 
       {/* ── 주별 탭 ── */}
       {activeTab === "weekly" && (() => {
-        const selectedWeek = mockWeeklyData[selectedWeekIdx];
-        const chartData = mockWeeklyData.map(w => ({ label: w.label, total_amount: w.total_amount, avgTemp: w.weather.avgTemp }));
+        if (loading) return <LoadingSpinner />;
+        if (weeklyData.length === 0) {
+          return (
+            <div className="rounded-xl bg-white p-10 text-center shadow-sm border border-gray-100">
+              <p className="text-sm text-gray-500">최근 12주 매출 데이터가 없습니다.</p>
+            </div>
+          );
+        }
+        const selectedWeek = weeklyData[selectedWeekIdx];
+        const chartData = weeklyData.map(w => ({ label: w.label, total_amount: w.total_amount }));
 
         return (
           <div className="space-y-6">
@@ -776,19 +885,9 @@ export default function AnalysisPage() {
                       tick={(p) => <WeekWeatherTick {...p} metaMap={weekMetaMap} />}
                       tickLine={false}
                     />
-                    <YAxis yAxisId="sales" tickFormatter={formatAmount} tick={{ fontSize: 11, fill: "#9ca3af" }} tickLine={false} axisLine={false} />
-                    <YAxis
-                      yAxisId="temp"
-                      orientation="right"
-                      tickFormatter={(v) => `${v}°`}
-                      tick={{ fontSize: 11, fill: "#f97316" }}
-                      tickLine={false}
-                      axisLine={false}
-                      domain={["auto", "auto"]}
-                      width={36}
-                    />
-                    <Tooltip content={<WeeklyTooltip metaList={mockWeeklyData} />} />
-                    <Bar yAxisId="sales" dataKey="total_amount" radius={[4, 4, 0, 0]} maxBarSize={50} shape={WeekBarShape}>
+                    <YAxis tickFormatter={formatAmount} tick={{ fontSize: 11, fill: "#9ca3af" }} tickLine={false} axisLine={false} />
+                    <Tooltip content={<WeeklyTooltip metaList={weeklyData} />} />
+                    <Bar dataKey="total_amount" radius={[4, 4, 0, 0]} maxBarSize={50} shape={WeekBarShape}>
                       {chartData.map((_, idx) => (
                         <Cell key={idx} fill={idx === selectedWeekIdx ? "#1d4ed8" : "#3b82f6"} />
                       ))}
@@ -838,56 +937,64 @@ export default function AnalysisPage() {
                 {/* Category Ranking */}
                 <div>
                   <h4 className="mb-3 text-sm font-semibold text-gray-700">카테고리별 매출 순위</h4>
-                  <div className="space-y-2.5">
-                    {selectedWeek.categoryStats.map((cs, idx) => (
-                      <div key={cs.category} className="flex items-center gap-3">
-                        <span className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-bold ${idx < 3 ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-500"}`}>
-                          {idx + 1}
-                        </span>
-                        <span className="w-24 shrink-0 text-xs text-gray-600">{cs.category}</span>
-                        <div className="flex-1">
-                          <div className="h-2 w-full rounded-full bg-gray-100">
-                            <div
-                              className="h-2 rounded-full"
-                              style={{ width: `${cs.percentage}%`, backgroundColor: COLORS[idx % COLORS.length] }}
-                            />
+                  {selectedWeek.categoryStats.length === 0 ? (
+                    <p className="text-xs text-gray-400">카테고리 데이터가 없습니다.</p>
+                  ) : (
+                    <div className="space-y-2.5">
+                      {selectedWeek.categoryStats.map((cs, idx) => (
+                        <div key={cs.category} className="flex items-center gap-3">
+                          <span className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-bold ${idx < 3 ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-500"}`}>
+                            {idx + 1}
+                          </span>
+                          <span className="w-24 shrink-0 text-xs text-gray-600">{cs.category}</span>
+                          <div className="flex-1">
+                            <div className="h-2 w-full rounded-full bg-gray-100">
+                              <div
+                                className="h-2 rounded-full"
+                                style={{ width: `${cs.percentage || 0}%`, backgroundColor: COLORS[idx % COLORS.length] }}
+                              />
+                            </div>
                           </div>
+                          <span className="w-20 shrink-0 text-right text-xs font-medium text-gray-700">
+                            {cs.total_amount.toLocaleString()}원
+                          </span>
                         </div>
-                        <span className="w-20 shrink-0 text-right text-xs font-medium text-gray-700">
-                          {cs.total_amount.toLocaleString()}원
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Top Products */}
                 <div>
                   <h4 className="mb-3 text-sm font-semibold text-gray-700">상품별 매출 순위</h4>
-                  <table className="w-full text-left text-xs">
-                    <thead>
-                      <tr className="border-b border-gray-200 text-gray-400">
-                        <th className="pb-2 pr-2 font-medium">순위</th>
-                        <th className="pb-2 pr-2 font-medium">상품명</th>
-                        <th className="pb-2 pr-2 text-right font-medium">판매량</th>
-                        <th className="pb-2 text-right font-medium">매출</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {selectedWeek.topProducts.map((p, idx) => (
-                        <tr key={idx} className="border-b border-gray-50 text-gray-700">
-                          <td className="py-2 pr-2">
-                            <span className={`inline-flex h-4 w-4 items-center justify-center rounded-full text-xs font-bold ${idx < 3 ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-500"}`}>
-                              {idx + 1}
-                            </span>
-                          </td>
-                          <td className="py-2 pr-2">{p.product_name}</td>
-                          <td className="py-2 pr-2 text-right">{p.total_quantity}개</td>
-                          <td className="py-2 text-right font-medium">{p.total_amount.toLocaleString()}원</td>
+                  {selectedWeek.topProducts.length === 0 ? (
+                    <p className="text-xs text-gray-400">상품 데이터가 없습니다.</p>
+                  ) : (
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="border-b border-gray-200 text-gray-400">
+                          <th className="pb-2 pr-2 font-medium">순위</th>
+                          <th className="pb-2 pr-2 font-medium">상품명</th>
+                          <th className="pb-2 pr-2 text-right font-medium">판매량</th>
+                          <th className="pb-2 text-right font-medium">매출</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {selectedWeek.topProducts.map((p, idx) => (
+                          <tr key={idx} className="border-b border-gray-50 text-gray-700">
+                            <td className="py-2 pr-2">
+                              <span className={`inline-flex h-4 w-4 items-center justify-center rounded-full text-xs font-bold ${idx < 3 ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-500"}`}>
+                                {idx + 1}
+                              </span>
+                            </td>
+                            <td className="py-2 pr-2">{p.name}</td>
+                            <td className="py-2 pr-2 text-right">{p.total_quantity}개</td>
+                            <td className="py-2 text-right font-medium">{p.total_amount.toLocaleString()}원</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
                 </div>
               </div>
             </div>
@@ -910,7 +1017,9 @@ export default function AnalysisPage() {
                   className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
               </div>
-              {dailyMeta ? (
+              {loading ? (
+                <span className="text-xs text-gray-400">로딩 중...</span>
+              ) : dailyMeta ? (
                 <>
                   <WeatherBadge condition={dailyMeta.weather.condition} avgTemp={dailyMeta.weather.avgTemp} />
                   {dailyMeta.events.map((ev, i) => (
@@ -918,7 +1027,7 @@ export default function AnalysisPage() {
                   ))}
                 </>
               ) : (
-                <span className="text-xs text-gray-400">날씨·이벤트 정보 없음</span>
+                <span className="text-xs text-gray-400">날씨/이벤트 정보 없음</span>
               )}
               <div className="ml-auto text-right">
                 <p className="text-xs text-gray-500">일 매출</p>
@@ -927,134 +1036,114 @@ export default function AnalysisPage() {
             </div>
           </div>
 
-          {/* Hourly Chart */}
-          <div className="rounded-xl bg-white p-5 shadow-sm border border-gray-100">
-            <h3 className="mb-4 text-base font-semibold text-gray-800">시간별 매출 ({selectedDate})</h3>
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={hourlyData.map((h) => ({ ...h, label: `${h.hour}시` }))}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#9ca3af" }} tickLine={false} />
-                  {/* 왼쪽 Y축: 매출 */}
-                  <YAxis
-                    yAxisId="sales"
-                    orientation="left"
-                    tickFormatter={formatAmount}
-                    tick={{ fontSize: 11, fill: "#9ca3af" }}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  {/* 오른쪽 Y축: 기온 */}
-                  <YAxis
-                    yAxisId="temp"
-                    orientation="right"
-                    tickFormatter={(v) => `${v}°`}
-                    tick={{ fontSize: 11, fill: "#f97316" }}
-                    tickLine={false}
-                    axisLine={false}
-                    domain={["auto", "auto"]}
-                    width={36}
-                  />
-                  <Tooltip
-                    contentStyle={tooltipStyle}
-                    formatter={(v, name) => {
-                      if (name === "total_amount") return [`${Number(v).toLocaleString()}원`, "매출액"];
-                      if (name === "temp") return [`${v}°C`, "기온"];
-                      return [v, name];
-                    }}
-                  />
-                  <Legend
-                    verticalAlign="bottom"
-                    height={28}
-                    formatter={(value) => (
-                      <span className="text-xs text-gray-500">
-                        {value === "total_amount" ? "매출액" : value === "temp" ? "기온" : value}
-                      </span>
-                    )}
-                  />
-                  <Bar yAxisId="sales" dataKey="total_amount" radius={[4, 4, 0, 0]} maxBarSize={38} name="total_amount">
-                    {hourlyData.map((h, idx) => (
-                      <Cell key={idx} fill={["07","08","12","18","19"].includes(h.hour) ? "#1d4ed8" : "#3b82f6"} />
-                    ))}
-                  </Bar>
-                  <Line
-                    yAxisId="temp"
-                    type="monotone"
-                    dataKey="temp"
-                    name="temp"
-                    stroke="#f97316"
-                    strokeWidth={2}
-                    dot={{ r: 3, fill: "#f97316", strokeWidth: 0 }}
-                    activeDot={{ r: 5 }}
-                  />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="mt-2 flex items-center gap-4 text-xs text-gray-400">
-              <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-blue-800" /> 피크 시간대</span>
-              <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-blue-400" /> 일반 시간대</span>
-              <span className="flex items-center gap-1.5"><span className="inline-block h-0.5 w-4 bg-orange-400 rounded" /> 기온</span>
-            </div>
-          </div>
-
-          {/* Daily Category + Products */}
-          {dailyMeta && (
-            <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-              {/* Category */}
+          {loading ? <LoadingSpinner /> : (
+            <>
+              {/* Hourly Chart */}
               <div className="rounded-xl bg-white p-5 shadow-sm border border-gray-100">
-                <h3 className="mb-4 text-base font-semibold text-gray-800">카테고리별 매출</h3>
-                <div className="space-y-2.5">
-                  {dailyMeta.categoryStats.map((cs, idx) => (
-                    <div key={cs.category} className="flex items-center gap-3">
-                      <span className="w-20 shrink-0 text-xs text-gray-500">{cs.category}</span>
-                      <div className="flex-1">
-                        <div className="h-2 w-full rounded-full bg-gray-100">
-                          <div
-                            className="h-2 rounded-full"
-                            style={{ width: `${cs.percentage}%`, backgroundColor: COLORS[idx % COLORS.length] }}
+                <h3 className="mb-4 text-base font-semibold text-gray-800">시간별 매출 ({selectedDate})</h3>
+                {hourlyData.length === 0 ? (
+                  <div className="flex items-center justify-center py-10">
+                    <p className="text-sm text-gray-500">해당 날짜의 시간별 데이터가 없습니다.</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="h-[280px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={hourlyData.map((h) => ({ ...h, label: `${h.hour}시` }))}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                          <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#9ca3af" }} tickLine={false} />
+                          <YAxis tickFormatter={formatAmount} tick={{ fontSize: 11, fill: "#9ca3af" }} tickLine={false} axisLine={false} />
+                          <Tooltip
+                            formatter={(v, name) => [
+                              `${Number(v).toLocaleString()}${name === "total_amount" ? "원" : "건"}`,
+                              name === "total_amount" ? "매출액" : "거래수",
+                            ]}
+                            contentStyle={tooltipStyle}
                           />
-                        </div>
-                      </div>
-                      <span className="w-12 shrink-0 text-right text-xs font-medium text-gray-700">{cs.percentage}%</span>
-                      <span className="w-20 shrink-0 text-right text-xs text-gray-500">{cs.total_amount.toLocaleString()}원</span>
+                          <Bar dataKey="total_amount" radius={[4, 4, 0, 0]} maxBarSize={38}>
+                            {hourlyData.map((h, idx) => (
+                              <Cell key={idx} fill={["07","08","12","18","19"].includes(h.hour) ? "#1d4ed8" : "#3b82f6"} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
                     </div>
-                  ))}
-                </div>
+                    <div className="mt-2 flex items-center gap-4 text-xs text-gray-400">
+                      <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-blue-800" /> 피크 시간대</span>
+                      <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-blue-400" /> 일반 시간대</span>
+                    </div>
+                  </>
+                )}
               </div>
 
-              {/* Top Products */}
-              <div className="rounded-xl bg-white p-5 shadow-sm border border-gray-100">
-                <h3 className="mb-4 text-base font-semibold text-gray-800">오늘 상품별 매출</h3>
-                <table className="w-full text-left text-xs">
-                  <thead>
-                    <tr className="border-b border-gray-200 text-gray-400">
-                      <th className="pb-2 pr-2 font-medium">순위</th>
-                      <th className="pb-2 pr-2 font-medium">상품명</th>
-                      <th className="pb-2 pr-2 font-medium">카테고리</th>
-                      <th className="pb-2 pr-2 text-right font-medium">수량</th>
-                      <th className="pb-2 text-right font-medium">매출</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {dailyMeta.topProducts.map((p, idx) => (
-                      <tr key={idx} className="border-b border-gray-50 text-gray-700">
-                        <td className="py-2 pr-2">
-                          <span className={`inline-flex h-4 w-4 items-center justify-center rounded-full text-xs font-bold ${idx < 3 ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-500"}`}>
-                            {idx + 1}
-                          </span>
-                        </td>
-                        <td className="py-2 pr-2">{p.product_name}</td>
-                        <td className="py-2 pr-2">
-                          <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-gray-600">{p.category}</span>
-                        </td>
-                        <td className="py-2 pr-2 text-right">{p.total_quantity}개</td>
-                        <td className="py-2 text-right font-medium">{p.total_amount.toLocaleString()}원</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+              {/* Daily Category + Products */}
+              {dailyMeta && (
+                <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+                  {/* Category */}
+                  <div className="rounded-xl bg-white p-5 shadow-sm border border-gray-100">
+                    <h3 className="mb-4 text-base font-semibold text-gray-800">카테고리별 매출</h3>
+                    {dailyMeta.categoryStats.length === 0 ? (
+                      <p className="text-xs text-gray-400">카테고리 데이터가 없습니다.</p>
+                    ) : (
+                      <div className="space-y-2.5">
+                        {dailyMeta.categoryStats.map((cs, idx) => (
+                          <div key={cs.category} className="flex items-center gap-3">
+                            <span className="w-20 shrink-0 text-xs text-gray-500">{cs.category}</span>
+                            <div className="flex-1">
+                              <div className="h-2 w-full rounded-full bg-gray-100">
+                                <div
+                                  className="h-2 rounded-full"
+                                  style={{ width: `${cs.percentage || 0}%`, backgroundColor: COLORS[idx % COLORS.length] }}
+                                />
+                              </div>
+                            </div>
+                            <span className="w-12 shrink-0 text-right text-xs font-medium text-gray-700">{cs.percentage || 0}%</span>
+                            <span className="w-20 shrink-0 text-right text-xs text-gray-500">{cs.total_amount.toLocaleString()}원</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Top Products */}
+                  <div className="rounded-xl bg-white p-5 shadow-sm border border-gray-100">
+                    <h3 className="mb-4 text-base font-semibold text-gray-800">오늘 상품별 매출</h3>
+                    {dailyMeta.topProducts.length === 0 ? (
+                      <p className="text-xs text-gray-400">상품 데이터가 없습니다.</p>
+                    ) : (
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="border-b border-gray-200 text-gray-400">
+                            <th className="pb-2 pr-2 font-medium">순위</th>
+                            <th className="pb-2 pr-2 font-medium">상품명</th>
+                            <th className="pb-2 pr-2 font-medium">카테고리</th>
+                            <th className="pb-2 pr-2 text-right font-medium">수량</th>
+                            <th className="pb-2 text-right font-medium">매출</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {dailyMeta.topProducts.map((p, idx) => (
+                            <tr key={idx} className="border-b border-gray-50 text-gray-700">
+                              <td className="py-2 pr-2">
+                                <span className={`inline-flex h-4 w-4 items-center justify-center rounded-full text-xs font-bold ${idx < 3 ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-500"}`}>
+                                  {idx + 1}
+                                </span>
+                              </td>
+                              <td className="py-2 pr-2">{p.name}</td>
+                              <td className="py-2 pr-2">
+                                <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-gray-600">{p.category}</span>
+                              </td>
+                              <td className="py-2 pr-2 text-right">{p.total_quantity}개</td>
+                              <td className="py-2 text-right font-medium">{p.total_amount.toLocaleString()}원</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       )}

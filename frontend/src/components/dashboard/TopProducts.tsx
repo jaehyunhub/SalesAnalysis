@@ -41,7 +41,7 @@ export default function TopProducts({ period }: { period: DashboardPeriod }) {
       ) : (
         <div className="space-y-3">
           {products.map((product, index) => (
-            <div key={product.product_name} className="flex items-center gap-3">
+            <div key={product.name} className="flex items-center gap-3">
               <span
                 className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
                   index < 3 ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-500"
@@ -51,7 +51,7 @@ export default function TopProducts({ period }: { period: DashboardPeriod }) {
               </span>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between mb-1">
-                  <span className="truncate text-sm text-gray-700">{product.product_name}</span>
+                  <span className="truncate text-sm text-gray-700">{product.name}</span>
                   <span className="ml-2 shrink-0 text-sm font-medium text-gray-800">
                     {product.total_amount.toLocaleString()}원
                   </span>

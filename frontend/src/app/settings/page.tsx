@@ -1,121 +1,122 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { TrashIcon } from "@heroicons/react/24/outline";
+import { eventsApi } from "@/lib/api";
 
-type EventType =
-  | "school_sports"
-  | "school_festival"
-  | "school_exam"
-  | "school_vacation"
-  | "local_festival"
-  | "marathon"
-  | "construction"
-  | "other";
+type EventType = "holiday" | "school" | "local" | "other";
 
 const eventTypeLabels: Record<EventType, string> = {
-  school_sports: "학교 체육대회",
-  school_festival: "학교 축제",
-  school_exam: "시험 기간",
-  school_vacation: "방학",
-  local_festival: "지역 축제",
-  marathon: "마라톤",
-  construction: "도로 공사",
+  holiday: "공휴일",
+  school: "학교 행사",
+  local: "지역 행사",
   other: "기타",
 };
 
 const eventTypeBadgeColors: Record<EventType, string> = {
-  school_sports: "bg-blue-100 text-blue-700",
-  school_festival: "bg-purple-100 text-purple-700",
-  school_exam: "bg-red-100 text-red-700",
-  school_vacation: "bg-green-100 text-green-700",
-  local_festival: "bg-yellow-100 text-yellow-700",
-  marathon: "bg-orange-100 text-orange-700",
-  construction: "bg-gray-100 text-gray-700",
-  other: "bg-slate-100 text-slate-700",
+  holiday: "bg-red-100 text-red-700",
+  school: "bg-green-100 text-green-700",
+  local: "bg-purple-100 text-purple-700",
+  other: "bg-gray-100 text-gray-700",
 };
 
-interface Event {
+interface EventItem {
   id: number;
-  type: EventType;
+  user_id: number;
+  event_date: string;
+  event_type: EventType;
   description: string;
-  start_date: string;
-  end_date: string;
+  created_at: string;
 }
 
-const mockEvents: Event[] = [
-  {
-    id: 1,
-    type: "school_festival",
-    description: "인근 고등학교 축제",
-    start_date: "2024-05-15",
-    end_date: "2024-05-17",
-  },
-  {
-    id: 2,
-    type: "school_exam",
-    description: "중간고사 기간",
-    start_date: "2024-04-08",
-    end_date: "2024-04-12",
-  },
-  {
-    id: 3,
-    type: "local_festival",
-    description: "동네 봄 축제",
-    start_date: "2024-04-20",
-    end_date: "2024-04-21",
-  },
-  {
-    id: 4,
-    type: "construction",
-    description: "점포 앞 도로 공사",
-    start_date: "2024-03-01",
-    end_date: "2024-04-30",
-  },
-];
-
 export default function SettingsPage() {
-  const [events, setEvents] = useState<Event[]>(mockEvents);
+  const [events, setEvents] = useState<EventItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [syncingHolidays, setSyncingHolidays] = useState(false);
+  const [syncMessage, setSyncMessage] = useState("");
+
   const [storeName, setStoreName] = useState("CU 강남역점");
   const [storeAddress, setStoreAddress] = useState("서울특별시 강남구 강남대로 123");
   const [storeInfoSaved, setStoreInfoSaved] = useState(false);
 
   const [form, setForm] = useState({
-    type: "school_sports" as EventType,
+    event_type: "other" as EventType,
     description: "",
-    start_date: "",
-    end_date: "",
+    event_date: "",
   });
   const [formError, setFormError] = useState("");
 
-  const handleAddEvent = () => {
+  const fetchEvents = useCallback(async () => {
+    try {
+      setError("");
+      const res = await eventsApi.getAll();
+      setEvents(res.data as EventItem[]);
+    } catch {
+      setError("이벤트 목록을 불러오는데 실패했습니다.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchEvents();
+  }, [fetchEvents]);
+
+  const handleAddEvent = async () => {
     if (!form.description.trim()) {
       setFormError("설명을 입력해주세요.");
       return;
     }
-    if (!form.start_date || !form.end_date) {
-      setFormError("시작일과 종료일을 모두 입력해주세요.");
-      return;
-    }
-    if (form.start_date > form.end_date) {
-      setFormError("종료일은 시작일 이후여야 합니다.");
+    if (!form.event_date) {
+      setFormError("날짜를 입력해주세요.");
       return;
     }
 
-    const newEvent: Event = {
-      id: Date.now(),
-      type: form.type,
-      description: form.description.trim(),
-      start_date: form.start_date,
-      end_date: form.end_date,
-    };
-    setEvents((prev) => [newEvent, ...prev]);
-    setForm({ type: "school_sports", description: "", start_date: "", end_date: "" });
     setFormError("");
+    setSubmitting(true);
+
+    try {
+      await eventsApi.create({
+        event_date: form.event_date,
+        event_type: form.event_type,
+        description: form.description.trim(),
+      });
+      setForm({ event_type: "other", description: "", event_date: "" });
+      await fetchEvents();
+    } catch {
+      setFormError("이벤트 추가에 실패했습니다. 다시 시도해주세요.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleDeleteEvent = (id: number) => {
-    setEvents((prev) => prev.filter((e) => e.id !== id));
+  const handleDeleteEvent = async (id: number) => {
+    setDeletingId(id);
+    try {
+      await eventsApi.delete(id);
+      setEvents((prev) => prev.filter((e) => e.id !== id));
+    } catch {
+      setError("이벤트 삭제에 실패했습니다.");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleSyncHolidays = async (year: number) => {
+    setSyncingHolidays(true);
+    setSyncMessage("");
+    try {
+      const res = await eventsApi.syncHolidays(year);
+      setSyncMessage(res.data.message || `${res.data.synced_count}건의 공휴일이 등록되었습니다.`);
+      await fetchEvents();
+    } catch {
+      setSyncMessage("공휴일 동기화에 실패했습니다.");
+    } finally {
+      setSyncingHolidays(false);
+    }
   };
 
   const handleSaveStoreInfo = () => {
@@ -171,14 +172,14 @@ export default function SettingsPage() {
         <p className="mb-4 text-sm text-gray-500">
           매출에 영향을 줄 수 있는 주변 이벤트를 등록하면 환경 변수 분석에 활용됩니다.
         </p>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-500">
               이벤트 유형
             </label>
             <select
-              value={form.type}
-              onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as EventType }))}
+              value={form.event_type}
+              onChange={(e) => setForm((f) => ({ ...f, event_type: e.target.value as EventType }))}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             >
               {(Object.keys(eventTypeLabels) as EventType[]).map((key) => (
@@ -202,23 +203,12 @@ export default function SettingsPage() {
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-500">
-              시작일
+              날짜
             </label>
             <input
               type="date"
-              value={form.start_date}
-              onChange={(e) => setForm((f) => ({ ...f, start_date: e.target.value }))}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-500">
-              종료일
-            </label>
-            <input
-              type="date"
-              value={form.end_date}
-              onChange={(e) => setForm((f) => ({ ...f, end_date: e.target.value }))}
+              value={form.event_date}
+              onChange={(e) => setForm((f) => ({ ...f, event_date: e.target.value }))}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
           </div>
@@ -229,9 +219,10 @@ export default function SettingsPage() {
         <div className="mt-4">
           <button
             onClick={handleAddEvent}
-            className="rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600"
+            disabled={submitting}
+            className="rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            이벤트 추가
+            {submitting ? "추가 중..." : "이벤트 추가"}
           </button>
         </div>
       </div>
@@ -239,11 +230,34 @@ export default function SettingsPage() {
       {/* Event list */}
       <div className="rounded-xl bg-white p-5 shadow-sm border border-gray-100">
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-base font-semibold text-gray-800">등록된 이벤트</h3>
-          <span className="text-sm text-gray-500">총 {events.length}건</span>
+          <div className="flex items-center gap-3">
+            <h3 className="text-base font-semibold text-gray-800">등록된 이벤트</h3>
+            <span className="text-sm text-gray-500">총 {events.length}건</span>
+          </div>
+          <button
+            onClick={() => handleSyncHolidays(new Date().getFullYear())}
+            disabled={syncingHolidays}
+            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {syncingHolidays ? "동기화 중..." : `공휴일 자동 등록 (${new Date().getFullYear()}년)`}
+          </button>
         </div>
 
-        {events.length === 0 ? (
+        {syncMessage && (
+          <p className={`mb-3 text-sm ${syncMessage.includes("실패") ? "text-red-500" : "text-green-600"}`}>
+            {syncMessage}
+          </p>
+        )}
+
+        {error && (
+          <p className="mb-3 text-sm text-red-500">{error}</p>
+        )}
+
+        {loading ? (
+          <div className="py-10 text-center text-sm text-gray-400">
+            이벤트 목록을 불러오는 중...
+          </div>
+        ) : events.length === 0 ? (
           <div className="py-10 text-center text-sm text-gray-400">
             등록된 이벤트가 없습니다.
           </div>
@@ -254,8 +268,7 @@ export default function SettingsPage() {
                 <tr className="border-b border-gray-200 text-gray-500">
                   <th className="pb-3 pr-4 font-medium">유형</th>
                   <th className="pb-3 pr-4 font-medium">설명</th>
-                  <th className="pb-3 pr-4 font-medium">시작일</th>
-                  <th className="pb-3 pr-4 font-medium">종료일</th>
+                  <th className="pb-3 pr-4 font-medium">날짜</th>
                   <th className="pb-3 font-medium text-right">삭제</th>
                 </tr>
               </thead>
@@ -264,18 +277,18 @@ export default function SettingsPage() {
                   <tr key={event.id} className="border-b border-gray-100 text-gray-700">
                     <td className="py-3 pr-4">
                       <span
-                        className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${eventTypeBadgeColors[event.type]}`}
+                        className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${eventTypeBadgeColors[event.event_type] || "bg-gray-100 text-gray-700"}`}
                       >
-                        {eventTypeLabels[event.type]}
+                        {eventTypeLabels[event.event_type] || event.event_type}
                       </span>
                     </td>
                     <td className="py-3 pr-4">{event.description}</td>
-                    <td className="py-3 pr-4 text-gray-500">{event.start_date}</td>
-                    <td className="py-3 pr-4 text-gray-500">{event.end_date}</td>
+                    <td className="py-3 pr-4 text-gray-500">{event.event_date}</td>
                     <td className="py-3 text-right">
                       <button
                         onClick={() => handleDeleteEvent(event.id)}
-                        className="rounded-md p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500"
+                        disabled={deletingId === event.id}
+                        className="rounded-md p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500 disabled:opacity-50"
                       >
                         <TrashIcon className="h-4 w-4" />
                       </button>
