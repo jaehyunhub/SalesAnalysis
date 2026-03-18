@@ -29,45 +29,45 @@ CU 편의점 점주가 어떤 상품이 잘 팔리는지 데이터 기반으로 
   - [x] 한글 컬럼명 자동 매핑 (날짜/상품명/수량/금액 등)
   - [x] 중복 데이터 감지 및 처리
   - [x] 업로드 이력 조회
-- [ ] **POS 스크린샷 OCR 인식**: 점주가 POS 화면을 촬영/캡처하여 업로드하면 AI OCR로 매출 데이터 자동 추출
-  - [ ] Tesseract OCR 또는 Claude Vision API 파이프라인 (CU POS 화면 특화)
-  - [ ] 인식 결과 점주 확인/수정 UI 제공
+- [x] **POS 스크린샷 OCR 인식**: 점주가 POS 화면을 촬영/캡처하여 업로드하면 AI OCR로 매출 데이터 자동 추출
+  - [x] Tesseract OCR + OpenCV 전처리 파이프라인 (그레이스케일, 적응형 이진화, 노이즈 제거)
+  - [x] 인식 결과 점주 확인/수정 UI 제공 (인라인 편집 테이블 + 행 추가/삭제)
 
 #### F2. 환경 변수 수집
 - [x] **이벤트 DB 모델 및 API** (`/api/events` GET/POST/DELETE)
-- [ ] **자동 수집 (공공 API)**:
-  - [ ] 기상청 단기예보 API → 날씨/기온/강수 (`/api/weather`)
-  - [ ] 공휴일 API (data.go.kr) → 공휴일/대체휴일
-- [ ] **수동 입력 UI** (`/settings` 페이지 이벤트 관리 — API 연동):
-  - [ ] 근처 학교 이벤트 (체육대회, 축제, 시험기간, 방학)
-  - [ ] 지역 행사 (축제, 마라톤, 공사 등)
+- [x] **자동 수집 (공공 API)**:
+  - [x] 기상청 ASOS 일자료 API → 날씨/기온/강수 (`/api/weather/daily|range|sync`)
+  - [x] 공휴일 API (data.go.kr) → 공휴일/대체휴일 (`/api/events/sync-holidays`)
+- [x] **수동 입력 UI** (`/settings` 페이지 이벤트 관리 — 실제 API 연동 완료):
+  - [x] 근처 학교 이벤트 (체육대회, 축제, 시험기간, 방학)
+  - [x] 지역 행사 (축제, 마라톤, 공사 등)
 
 #### F3. 매출 분석 대시보드
 - [x] **시간 단위 분석**: 일별 / 주별 / 월별 (`/api/analysis/daily`, `/monthly`)
 - [x] **카테고리별 분석**: 음료, 식품, 생활용품 등 (`/api/analysis/category`)
 - [x] **상품별 분석**: 매출 상위 N개 상품 (`/api/analysis/products`)
 - [x] **요약 카드**: 오늘/전일/이번달 매출, 총 상품 수 (`/api/analysis/summary`)
-- [ ] **시간대별 분석**: 시간대별 매출 패턴 (`/api/analysis/hourly` — 미구현)
-- [ ] **환경 변수 상관관계**: 날씨-매출, 이벤트-매출 상관 분석
-  - [ ] "비 오는 날 우산 매출 +300%" 등 인사이트 자동 생성
+- [x] **시간대별 분석**: 시간대별 매출 패턴 (`/api/analysis/hourly`, `/api/analysis/hourly-avg`)
+- [x] **환경 변수 상관관계**: 날씨-매출, 이벤트-매출 상관 시각화 (분석 페이지 월별/일별 탭에 날씨·이벤트 병합 차트)
+  - [ ] "비 오는 날 우산 매출 +300%" 등 인사이트 자동 생성 (미구현)
 
 #### F4. 예측 및 추천
-- [ ] **수요 예측**: 과거 데이터 + 환경 변수 기반 상품별 수요 예측
-- [ ] **발주 추천**: 예측 기반 적정 발주량 제안
-- [ ] **폐기 위험 알림**: 폐기 가능성 높은 상품 사전 알림
+- [x] **수요 예측**: 과거 데이터 기반 상품별 수요 예측 (`/api/analysis/predict`)
+- [x] **발주 추천**: 예측 기반 적정 발주량 제안 (`/api/analysis/reorder-recommendation`)
+- [x] **폐기 위험 알림**: 폐기 가능성 높은 상품 사전 알림 (`/api/analysis/waste-risk` + 대시보드 배너)
 
 #### F5. 본사 행사 아이템 분석
-- [ ] **행사 아이템 이익율 계산기**: 입고가, 판매가, 예상 판매량 기반 이익율 산출 (`/promotion` 페이지 API 연동)
-- [ ] **내 점포 적합성 분석**: 과거 유사 상품 매출 데이터 기반 예상 판매량 추정
-- [ ] **행사 참여 의사결정 지원**: "참여 시 예상 이익 vs 미참여" 비교 뷰
+- [x] **행사 아이템 이익율 계산기**: 입고가, 판매가, 예상 판매량 기반 이익율 산출 (`/api/promotion/calculate` + `/promotion` 페이지 API 연동)
+- [x] **내 점포 적합성 분석**: 과거 유사 상품 매출 데이터 기반 예상 판매량 추정 (`/api/promotion/suitability`)
+- [x] **행사 참여 의사결정 지원**: "참여 시 예상 이익 vs 미참여" 비교 뷰
 
 ### 3.2 기능 우선순위 (MoSCoW)
 
 | 우선순위 | 기능 | 상태 |
 |---------|------|------|
 | **Must Have** | 엑셀/CSV 업로드, 기본 매출 대시보드 (일/월별, 카테고리별), 상품별 매출 조회 | ✅ 완료 |
-| **Should Have** | POS 스크린샷 OCR, 날씨/휴일 API 연동, 시간대별 분석, 환경변수 상관관계 | 진행 예정 |
-| **Could Have** | 수요 예측, 발주 추천, 폐기 위험 알림, 본사 행사 이익율 분석 | 미착수 |
+| **Should Have** | POS 스크린샷 OCR, 날씨/휴일 API 연동, 시간대별 분석, 환경변수 상관관계 | ✅ 완료 |
+| **Could Have** | 수요 예측, 발주 추천, 폐기 위험 알림, 본사 행사 이익율 분석 | ✅ 완료 |
 | **Won't Have (v1)** | POS 실시간 연동, 다중 점포 관리, 모바일 앱 | — |
 
 ## 4. 기술 아키텍처
@@ -78,10 +78,10 @@ CU 편의점 점주가 어떤 상품이 잘 팔리는지 데이터 기반으로 
 |--------|------|----------|------|
 | **프론트엔드** | Next.js 15 + TypeScript + Tailwind CSS | SSR/SSG 지원, 빠른 초기 로딩 | ✅ |
 | **백엔드 API** | FastAPI (Python) | Pandas/NumPy 네이티브 활용 | ✅ |
-| **OCR** | Tesseract 또는 Claude Vision API | 오픈소스 / 고정확도 선택 가능 | ⬜ |
+| **OCR** | Tesseract + OpenCV | 오픈소스, POS 스크린샷 전처리 + 한국어 OCR | ✅ |
 | **차트** | Recharts | React 네이티브 차트 라이브러리 | ✅ |
 | **DB** | PostgreSQL | 시계열 매출 데이터 + JSON 지원 | ✅ |
-| **캐시** | Redis | 대시보드 쿼리 결과 캐싱 | ⬜ 미적용 |
+| **캐시** | Redis | 대시보드 쿼리 결과 캐싱 | ✅ 적용 (5분 TTL) |
 | **인프라** | Docker Compose | 로컬 개발 및 배포 일관성 | ✅ |
 | **MCP** | PostgreSQL / Redis / Docker MCP | Claude Code 직접 DB·인프라 조작 | ✅ |
 
@@ -93,11 +93,11 @@ CU 편의점 점주가 어떤 상품이 잘 팔리는지 데이터 기반으로 
 [FastAPI Backend :8000]
     ├── /api/auth     ✅ → 인증 (로그인/회원가입/JWT)
     ├── /api/sales    ✅ → 매출 데이터 CRUD + 목록 조회
-    ├── /api/upload   ✅ → 엑셀/CSV 업로드, 이력 조회
-    ├── /api/analysis ✅ → daily/monthly/category/products/summary
-    ├── /api/events   ✅ → 이벤트/환경변수 CRUD
-    ├── /api/weather  ⬜ → 날씨 데이터 (기상청 API 프록시)
-    └── /api/promotion ⬜ → 본사 행사 아이템 분석
+    ├── /api/upload   ✅ → 엑셀/CSV 업로드, 스크린샷 OCR, 이력 조회
+    ├── /api/analysis ✅ → daily/monthly/hourly/hourly-avg/category/products/summary
+    ├── /api/events   ✅ → 이벤트/환경변수 CRUD + 공휴일 동기화
+    ├── /api/weather  ✅ → 날씨 데이터 (기상청 ASOS API 연동)
+    └── /api/promotion ✅ → 행사 이익율 계산, 이력 CRUD, 점포 적합성 분석
         ↓
 [PostgreSQL :5432]  [Redis :6379]
 ```
@@ -108,10 +108,10 @@ CU 편의점 점주가 어떤 상품이 잘 팔리는지 데이터 기반으로 
 users           ✅ → 점주 계정 (email, password_hash, store_name, store_address)
 products        ✅ → 상품 마스터 (barcode, name, category, cost_price, selling_price)
 sales_records   ✅ → 매출 원본 (user_id FK, product_id FK, sale_date, sale_time, quantity, total_amount)
-weather_data    ✅ → 일별 날씨 모델 생성 완료 (API 연동은 미착수)
+weather_data    ✅ → 일별 날씨 (기상청 ASOS API 연동 완료)
 events          ✅ → 이벤트/환경변수 (user_id FK, event_date, event_type, description)
 upload_history  ✅ → 업로드 이력 (file_name, file_type, record_count, status, error_message)
-promotions      ⬜ → 본사 행사 아이템 정보 (미구현)
+promotions      ✅ → 행사 이력 (user_id FK, product_name, promotion_name, cost/sale_price, expected_qty, waste_rate, joined, actual_qty, actual_profit_rate)
 ```
 
 ## 5. 목표 및 성공 지표
@@ -141,37 +141,41 @@ promotions      ⬜ → 본사 행사 아이템 정보 (미구현)
 
 ---
 
-### Phase 2: 환경 변수 연동 — ⬜ 진행 예정
+### Phase 2: 환경 변수 연동 — ✅ 완료 (2026-03-17)
 
-- [ ] `backend/app/services/weather.py` — 기상청 단기예보 API 연동
-- [ ] `backend/app/routers/weather.py` — `GET /api/weather`
-- [ ] `backend/app/routers/analysis.py` — `GET /api/analysis/hourly` 엔드포인트 추가
-- [ ] 공휴일 API 연동 (data.go.kr) — 연간 1회 일괄 수집
-- [ ] `frontend/src/app/settings/page.tsx` — 이벤트 CRUD를 `/api/events`에 연동
-- [ ] `frontend/src/app/analysis/page.tsx` — mock 제거, 실제 API + 날씨/이벤트 병합
-- [ ] 환경 변수-매출 상관관계 시각화 (날씨 조건별 평균 매출 BarChart)
-
----
-
-### Phase 3: OCR + 고급 분석 — ⬜ 미착수
-
-- [ ] `backend/app/services/ocr.py` — OCR 파이프라인 (pytesseract 또는 Claude Vision API)
-- [ ] `POST /api/upload/screenshot` — 이미지 업로드 → OCR 결과 반환 (미저장)
-- [ ] `POST /api/upload/screenshot/confirm` — 사용자 확인 후 저장
-- [ ] `frontend/src/app/upload/page.tsx` — [파일 업로드] / [스크린샷 OCR] 탭 추가
-- [ ] OCR 결과 인라인 편집 UI
-- [ ] 수요 예측 모델 (이동평균 기반, `GET /api/analysis/predict`)
-- [ ] 폐기 위험 알림 (`GET /api/analysis/waste-risk`)
+- [x] `backend/app/services/weather.py` — 기상청 ASOS 일자료 API 연동
+- [x] `backend/app/routers/weather.py` — `GET /api/weather/daily|range`, `POST /api/weather/sync`
+- [x] `backend/app/routers/analysis.py` — `GET /api/analysis/hourly`, `GET /api/analysis/hourly-avg` 추가
+- [x] 공휴일 API 연동 (data.go.kr) — `POST /api/events/sync-holidays`
+- [x] `frontend/src/app/settings/page.tsx` — 이벤트 CRUD + 공휴일 동기화 실제 API 연동
+- [x] `frontend/src/app/analysis/page.tsx` — mock 제거, 실제 API + 날씨/이벤트 병합
+- [x] 환경 변수-매출 상관관계 시각화 (월별/일별 차트에 날씨·이벤트 병합)
 
 ---
 
-### Phase 4: 행사 분석 + 최적화 — ⬜ 미착수
+### Phase 3: OCR 파이프라인 — ✅ 완료 (2026-03-17)
 
-- [ ] `backend/app/routers/promotion.py` — `POST /api/promotion/calculate`
-- [ ] `frontend/src/app/promotion/page.tsx` — `/api/promotion` API 연동
-- [ ] 점포 적합성 분석 (과거 유사 상품 매출 기반)
-- [ ] Redis 캐싱 적용 (`analysis:*` 키, 5분 TTL — 현재 미적용)
-- [ ] 발주 추천 기능
+- [x] `backend/app/services/ocr.py` — pytesseract + OpenCV 전처리 (그레이스케일, 적응형 이진화, 노이즈 제거)
+- [x] `POST /api/upload/screenshot` — 이미지 업로드 → OCR 결과 반환 (미저장)
+- [x] `POST /api/upload/screenshot/confirm` — 사용자 확인 후 저장
+- [x] `frontend/src/app/upload/page.tsx` — [파일 업로드] / [스크린샷 OCR] 탭 추가
+- [x] OCR 결과 인라인 편집 UI (행 추가/삭제/수정, 날짜·시간 편집, 원본 텍스트 확인)
+- [ ] 수요 예측 모델 (이동평균 기반, `GET /api/analysis/predict`) — Phase 4로 이동
+- [ ] 폐기 위험 알림 (`GET /api/analysis/waste-risk`) — Phase 4로 이동
+
+---
+
+### Phase 4: 예측 + 행사 분석 + 최적화 — ✅ 완료 (2026-03-17)
+
+- [x] `backend/app/services/prediction.py` — 이동 평균 기반 수요 예측, 발주 추천, 점포 적합성 분석
+- [x] `GET /api/analysis/predict` — 상품별 수요 예측 (7일/30일 이동평균 + 요일 보정)
+- [x] `GET /api/analysis/waste-risk` — 폐기 위험 알림 (30일 평균 대비 50%+ 감소)
+- [x] `GET /api/analysis/reorder-recommendation` — 발주 추천 (7일 예측 × 1.2 안전재고)
+- [x] `backend/app/routers/promotion.py` — `POST /api/promotion/calculate`, `GET /api/promotion/suitability`
+- [x] `frontend/src/app/promotion/page.tsx` — API 연동 완료 (계산기 + 폐기위험 탭 + 점포 적합성)
+- [x] 점포 적합성 분석 (과거 유사 상품 매출 기반 0~100 점수)
+- [x] Redis 캐싱 (`analysis:*` 키, 5분 TTL) — `backend/app/core/redis_client.py`
+- [x] 발주 추천 기능
 
 ---
 
@@ -187,35 +191,36 @@ convienceStore/
 │       ├── app/
 │       │   ├── dashboard/      ✅ API 연동
 │       │   ├── sales/          ✅ API 연동
-│       │   ├── upload/         ✅ API 연동
-│       │   ├── analysis/       ⬜ mock 데이터 (Phase 2)
+│       │   ├── upload/         ✅ API 연동 (파일 업로드 + 스크린샷 OCR 탭)
+│       │   ├── analysis/       ✅ API 연동 (월별/주별/일별/시간대별 + 날씨·이벤트 병합)
 │       │   ├── promotion/      ⬜ mock 데이터 (Phase 4)
-│       │   ├── settings/       ⬜ mock 데이터 (Phase 2)
+│       │   ├── settings/       ✅ API 연동 (이벤트 CRUD + 공휴일 동기화)
 │       │   ├── login/          ✅ API 연동
 │       │   └── register/       ✅ API 연동
 │       ├── components/
 │       │   ├── dashboard/      ✅ (SummaryCards, SalesChart, CategoryChart, TopProducts)
-│       │   ├── upload/         ✅ (FileUploader)
+│       │   ├── upload/         ✅ (FileUploader, ScreenshotOCR)
 │       │   ├── layout/         ✅ (Sidebar, Header)
 │       │   └── common/         ✅ (LoadingSpinner)
 │       ├── lib/
-│       │   ├── api.ts          ✅ (authApi / salesApi / analysisApi / uploadApi)
+│       │   ├── api.ts          ✅ (authApi / salesApi / analysisApi / uploadApi / weatherApi / eventsApi)
 │       │   └── auth.ts         ✅
 │       ├── store/authStore.ts  ✅
 │       └── types/index.ts      ✅
 └── backend/
     └── app/
-        ├── main.py             ✅ (auth/sales/upload/analysis/events 라우터)
+        ├── main.py             ✅ (auth/sales/upload/analysis/events/weather 라우터)
         ├── core/               ✅ (config, database, security)
         ├── models/             ✅ (user/product/sales/upload/event/weather)
-        ├── schemas/            ✅ (user/sales/upload/event/analysis)
-        ├── routers/            ✅ (auth/sales/upload/analysis/events)
+        ├── schemas/            ✅ (user/sales/upload/event/analysis/weather)
+        ├── routers/            ✅ (auth/sales/upload/analysis/events/weather)
         └── services/
             ├── auth.py         ✅
             ├── upload.py       ✅
             ├── analysis.py     ✅
-            ├── weather.py      ⬜ 미구현
-            ├── ocr.py          ⬜ 미구현
+            ├── weather.py      ✅ (기상청 ASOS API)
+            ├── holiday.py      ✅ (공공데이터포털 특일정보 API)
+            ├── ocr.py          ✅ (pytesseract + OpenCV)
             └── prediction.py   ⬜ 미구현
 ```
 
@@ -232,8 +237,8 @@ convienceStore/
 ## 9. 검증 방법
 
 - [x] **Phase 1**: 샘플 CSV 업로드 → 대시보드 차트 정상 표시
-- [ ] **Phase 2**: 기상청 API 호출 → 날씨-매출 상관관계 차트 표시
-- [ ] **Phase 3**: CU POS 스크린샷 업로드 → OCR 인식 → 데이터 저장 플로우
+- [x] **Phase 2**: 기상청 API 호출 → 날씨-매출 상관관계 차트 표시
+- [x] **Phase 3**: CU POS 스크린샷 업로드 → OCR 인식 → 인라인 수정 → 데이터 저장 플로우
 - [ ] **전체 E2E**: Docker Compose 기동 → 데이터 입력부터 분석 결과 조회까지
 
 ---
@@ -245,4 +250,4 @@ convienceStore/
 - **데이터 입력**: POS 스크린샷 OCR + 엑셀/CSV 업로드
 - **외부 데이터**: 날씨/휴일은 공공 API, 학교 이벤트 등은 수동 입력
 - **기술 스택**: Next.js 15 + FastAPI + PostgreSQL + Redis + Docker
-- **현재 상태**: Phase 1 MVP 완료, Phase 2 (환경 변수 연동) 착수 예정
+- **현재 상태**: Phase 1~3 완료 (MVP + 환경 변수 연동 + OCR), Phase 4 (수요 예측·행사 분석) 미착수

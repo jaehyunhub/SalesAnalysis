@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"
 
+    # 외부 API 키
+    WEATHER_API_KEY: str = ""  # 기상청 API Hub 인증키
+    HOLIDAY_API_KEY: str = ""  # 공공데이터포털 특일정보 서비스키
+
     # 파일 업로드
     UPLOAD_DIR: str = "./uploads"
     MAX_UPLOAD_SIZE_MB: int = 10

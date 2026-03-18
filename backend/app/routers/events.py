@@ -5,7 +5,8 @@ from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.event import Event
 from app.models.user import User
-from app.schemas.event import EventCreate, EventResponse
+from app.schemas.event import EventCreate, EventResponse, HolidaySyncResponse
+from app.services.holiday import sync_holidays_to_events
 
 router = APIRouter(prefix="/api/events", tags=["이벤트"])
 
@@ -42,6 +43,20 @@ def create_event(
     db.commit()
     db.refresh(event)
     return event
+
+
+@router.post("/sync-holidays", response_model=HolidaySyncResponse)
+def sync_holidays(
+    year: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """공공데이터포털 API에서 해당 연도의 공휴일을 가져와 Event 테이블에 동기화한다."""
+    synced_count = sync_holidays_to_events(db, current_user.id, year)
+    return HolidaySyncResponse(
+        synced_count=synced_count,
+        message=f"{year}년 공휴일 {synced_count}건 동기화 완료",
+    )
 
 
 @router.delete("/{event_id}", status_code=204)

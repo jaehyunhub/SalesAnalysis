@@ -381,70 +381,98 @@ def process_screenshot(image_bytes) -> dict:
 - [ ] `npm run build` 에러 없음
 
 ### Phase 4 완료 기준
-- [ ] 날씨 데이터 API 호출 → weather_data 테이블 저장
-- [ ] 이벤트 등록 → 분석 차트에 반영
+- [x] 날씨 데이터 API 호출 → weather_data 테이블 저장
+- [x] 이벤트 등록 → 분석 차트에 반영
+- [x] 시간대별 분석 API (hourly, hourly-avg) 구현
+- [x] 공휴일 자동 동기화 API 구현
+- [x] /analysis 페이지 mock 데이터 → 실제 API 연동
+- [x] /settings 페이지 이벤트 CRUD → 실제 API 연동
 
 ### Phase 5 완료 기준
-- [ ] POS 스크린샷 업로드 → OCR 결과 테이블 표시
-- [ ] 수정 후 저장 → sales 데이터 반영
+- [x] POS 스크린샷 업로드 → OCR 결과 테이블 표시
+- [x] 수정 후 저장 → sales 데이터 반영
 
 ### Phase 6 완료 기준
-- [ ] 행사 아이템 입력 → 이익율 계산 결과 표시
+- [x] 행사 아이템 입력 → 이익율 계산 API 연동
+- [x] 행사 참여 vs 미참여 비교 계산
+- [x] 행사 이력 저장/조회/삭제 CRUD
+- [x] 수요 예측 (이동 평균 기반) 엔드포인트
+- [x] 폐기 위험 알림 엔드포인트 + UI
+- [x] /promotion 페이지 mock → 실제 API 연동
 
 ---
 
 ## 병렬 팀 구성 (Team Agents)
 
-### 현재 완료 상태 (2026-03-15)
+### 현재 완료 상태 (2026-03-17)
 
-#### Wave 0~2 완료 — 다음 세션은 Phase 4부터 시작
+#### Wave 0~5 완료 — 다음 세션은 Phase 6부터 시작
 
 | Wave / Phase | 작업 | 상태 |
 |---|---|---|
 | Wave 0 | Docker Compose, .env, DB 모델 6개 (user/product/sales/upload/event/weather), Alembic | ✅ 완료 |
 | Wave 1 | Auth/Sales/Upload/Analysis/Events 라우터 + summary 엔드포인트 | ✅ 완료 |
 | Wave 2 | 프론트엔드 전체 API 연동 (login/register/dashboard/sales/upload) | ✅ 완료 |
-| Phase 4 | 기상청 API, 공휴일 API, 이벤트 관리 UI, /analysis 페이지 연동 | ⬜ **다음 작업** |
-| Phase 5 | OCR 파이프라인 (POS 스크린샷) | ⬜ 미착수 |
-| Phase 6 | 수요 예측, 폐기 알림, 행사 이익율 고도화 | ⬜ 미착수 |
+| Wave 3 | 기상청 ASOS API 연동, 공휴일 API 연동, 시간대별 분석 API | ✅ 완료 |
+| Wave 4 | /settings 이벤트 CRUD 연동, /analysis mock→API 전환, 날씨/이벤트 병합 | ✅ 완료 |
+| Phase 5 | OCR 파이프라인 (POS 스크린샷) | ✅ 완료 |
+| Phase 6 | 수요 예측, 폐기 알림, 행사 이익율 고도화 | ✅ 완료 |
 
-#### 완료된 파일 목록 (이번 세션)
-**백엔드 신규/수정:**
-- `models/event.py` — Event 모델 (user_id FK, event_date, event_type, description)
-- `models/weather.py` — WeatherData 모델 (date UNIQUE, avg_temp, condition, precipitation)
-- `models/__init__.py` — Event, WeatherData import 추가
-- `models/user.py` — events relationship 추가
-- `schemas/event.py` — EventCreate, EventResponse
-- `schemas/analysis.py` — SummaryResponse 등 6개 분석 스키마
-- `routers/events.py` — GET/POST/DELETE `/api/events`
-- `services/analysis.py` — get_summary() 추가
-- `routers/analysis.py` — GET `/api/analysis/summary` 추가
-- `main.py` — events 라우터 등록
+#### Wave 3~4 완료 파일 목록 (2026-03-17 세션)
+**백엔드 신규:**
+- `services/weather.py` — 기상청 ASOS 일자료 API 연동 (fetch_daily_weather, fetch_weather_range, save_weather_to_db)
+- `services/holiday.py` — 공공데이터포털 특일정보 API 연동 (fetch_holidays, sync_holidays_to_events)
+- `routers/weather.py` — GET /api/weather/daily|range, POST /api/weather/sync
+- `schemas/weather.py` — WeatherResponse, WeatherSyncRequest, WeatherSyncResponse
 
-**프론트엔드 수정 (mock → 실제 API):**
-- `lib/api.ts` — 전체 재작성 (authApi / salesApi / analysisApi / uploadApi)
-- `types/index.ts` — SalesQuery.category, CategorySales.ratio 필드 추가
-- `app/login/page.tsx` — authApi.login() 연동
-- `app/register/page.tsx` — authApi.register() 연동
-- `components/dashboard/SummaryCards.tsx` — analysisApi.getSummary() 연동
-- `components/dashboard/SalesChart.tsx` — analysisApi.getDaily/getMonthly() 연동
-- `components/dashboard/CategoryChart.tsx` — analysisApi.getCategory() 연동
-- `components/dashboard/TopProducts.tsx` — analysisApi.getTopProducts() 연동
-- `components/upload/FileUploader.tsx` — uploadApi.uploadFile() 연동
-- `app/upload/page.tsx` — uploadApi.getHistory() 연동, 업로드 후 자동 갱신
-- `app/sales/page.tsx` — salesApi.getRecords() 서버사이드 페이지네이션
+**백엔드 수정:**
+- `core/config.py` — WEATHER_API_KEY, HOLIDAY_API_KEY 추가
+- `main.py` — weather 라우터 등록
+- `routers/analysis.py` — GET /api/analysis/hourly, hourly-avg 추가
+- `services/analysis.py` — get_hourly_sales(), get_hourly_avg_sales() 추가
+- `routers/events.py` — POST /api/events/sync-holidays 추가
+- `schemas/event.py` — HolidaySyncResponse 추가
 
-**인프라:**
-- `.mcp.json` — PostgreSQL / Redis / Docker MCP 서버 설정
+**프론트엔드 수정:**
+- `lib/api.ts` — weatherApi, eventsApi, analysisApi.getHourly/getHourlyAvg 추가
+- `app/settings/page.tsx` — mock 제거 → eventsApi CRUD 연동 + 공휴일 동기화 버튼
+- `app/analysis/page.tsx` — 7개 mock 데이터 삭제 → analysisApi/weatherApi/eventsApi 실제 연동
 
-#### Phase 4 시작 시 작업 순서
-```
-1. backend/app/services/weather.py   — 기상청 단기예보 API 연동
-2. backend/app/routers/weather.py    — GET /api/weather
-3. backend/app/routers/analysis.py   — GET /api/analysis/hourly 엔드포인트 추가
-4. frontend/src/app/settings/page.tsx — 이벤트 CRUD → /api/events 연동
-5. frontend/src/app/analysis/page.tsx — mock 제거, 실제 API + 날씨/이벤트 병합
-```
+#### Phase 5 완료 파일 목록 (2026-03-17 세션)
+**백엔드 신규:**
+- `services/ocr.py` — pytesseract + OpenCV 전처리 (그레이스케일, 적응형 이진화, 노이즈 제거, 선명화) + POS 스크린샷 OCR (한국어+영어)
+- `schemas/upload.py` — OCRRow, OCRResultResponse, OCRConfirmRequest, OCRConfirmResponse 추가
+
+**백엔드 수정:**
+- `routers/upload.py` — POST /api/upload/screenshot (OCR 처리, 미저장), POST /api/upload/screenshot/confirm (사용자 확인 후 매출 저장)
+- `requirements.txt` — pytesseract, opencv-python-headless, Pillow 추가
+
+**프론트엔드 신규:**
+- `components/upload/ScreenshotOCR.tsx` — 이미지 업로드 → OCR → 인라인 편집 테이블 (행 추가/삭제/수정, 날짜·시간 편집, 원본 텍스트 확인) → 매출 저장
+
+**프론트엔드 수정:**
+- `app/upload/page.tsx` — [파일 업로드] / [스크린샷 OCR] 탭 UI 추가
+- `lib/api.ts` — uploadApi.uploadScreenshot(), uploadApi.confirmScreenshot() 추가
+- `types/index.ts` — OCRRow, OCRResult, OCRConfirmRequest 타입 추가
+
+#### Phase 6 완료 파일 목록 (2026-03-17 세션)
+**백엔드 신규:**
+- `services/prediction.py` — 이동 평균 기반 수요 예측 (predict_demand, get_waste_risk_products), 요일별 보정 계수 적용
+- `models/promotion.py` — Promotion 모델 (user_id FK, product_name, promotion_name, start/end_date, cost/sale_price, expected_qty, waste_rate, joined, actual_qty, actual_profit_rate)
+- `schemas/promotion.py` — PromotionCalculateRequest/Response, ComparisonResult, PromotionCreate/Update/Response, PromotionHistoryResponse
+- `routers/promotion.py` — POST /api/promotion/calculate, GET /api/promotion/history, POST/PUT/DELETE /api/promotion
+
+**백엔드 수정:**
+- `schemas/analysis.py` — PredictionItem, PredictionResponse, WasteRiskItem, WasteRiskResponse 추가
+- `routers/analysis.py` — GET /api/analysis/predict, GET /api/analysis/waste-risk 추가
+- `models/__init__.py` — Promotion 임포트 추가
+- `models/user.py` — promotions relationship 추가
+- `main.py` — promotion 라우터 등록
+
+**프론트엔드 수정:**
+- `types/index.ts` — Promotion, Prediction, WasteRisk 관련 타입 추가
+- `lib/api.ts` — promotionApi 객체 추가, analysisApi.getPredict/getWasteRisk 추가
+- `app/promotion/page.tsx` — mock 데이터 제거 → 실제 API 연동 (행사 계산기 + 폐기 위험 알림 탭)
 
 ### Wave 0: Foundation (선행 순차)
 

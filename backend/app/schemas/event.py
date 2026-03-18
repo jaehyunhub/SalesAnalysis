@@ -21,3 +21,8 @@ class EventResponse(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class HolidaySyncResponse(BaseModel):
+    synced_count: int
+    message: str

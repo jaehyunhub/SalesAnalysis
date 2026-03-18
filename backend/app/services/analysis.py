@@ -12,7 +12,7 @@ from app.schemas.sales import (
     CategorySalesResponse,
     ProductRankResponse,
 )
-from app.schemas.analysis import SummaryResponse
+from app.schemas.analysis import SummaryResponse, HourlySales
 
 
 def get_daily_sales(
@@ -167,6 +167,77 @@ def get_product_ranking(
             rank=idx + 1,
         )
         for idx, row in enumerate(rows)
+    ]
+
+
+def get_hourly_sales(
+    db: Session,
+    user_id: int,
+    target_date: date,
+) -> List[HourlySales]:
+    """특정 날짜의 시간대별 매출을 조회한다."""
+    rows = (
+        db.query(
+            SalesRecord.sale_hour.label("hour"),
+            func.sum(SalesRecord.total_amount).label("total_amount"),
+            func.sum(SalesRecord.quantity).label("total_quantity"),
+        )
+        .filter(
+            SalesRecord.user_id == user_id,
+            SalesRecord.sale_date == target_date,
+            SalesRecord.sale_hour.isnot(None),
+        )
+        .group_by(SalesRecord.sale_hour)
+        .order_by(SalesRecord.sale_hour)
+        .all()
+    )
+
+    return [
+        HourlySales(
+            hour=int(row.hour),
+            total_amount=float(row.total_amount or 0),
+            total_quantity=int(row.total_quantity or 0),
+        )
+        for row in rows
+    ]
+
+
+def get_hourly_avg_sales(
+    db: Session,
+    user_id: int,
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+) -> List[HourlySales]:
+    """기간 내 시간대별 평균 매출을 조회한다."""
+    query = (
+        db.query(
+            SalesRecord.sale_hour.label("hour"),
+            func.sum(SalesRecord.total_amount).label("total_amount"),
+            func.sum(SalesRecord.quantity).label("total_quantity"),
+            func.count(func.distinct(SalesRecord.sale_date)).label("day_count"),
+        )
+        .filter(
+            SalesRecord.user_id == user_id,
+            SalesRecord.sale_hour.isnot(None),
+        )
+        .group_by(SalesRecord.sale_hour)
+        .order_by(SalesRecord.sale_hour)
+    )
+
+    if start_date:
+        query = query.filter(SalesRecord.sale_date >= start_date)
+    if end_date:
+        query = query.filter(SalesRecord.sale_date <= end_date)
+
+    rows = query.all()
+
+    return [
+        HourlySales(
+            hour=int(row.hour),
+            total_amount=round(float(row.total_amount or 0) / max(row.day_count, 1), 2),
+            total_quantity=round(int(row.total_quantity or 0) / max(row.day_count, 1)),
+        )
+        for row in rows
     ]
 
 
