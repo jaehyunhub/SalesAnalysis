@@ -221,9 +221,11 @@ promotionApi.update(id, data)    // PUT /api/promotion/{id}
 promotionApi.delete(id)          // DELETE /api/promotion/{id}
 ```
 
-> **백엔드-프론트 타입 차이 주의**:
-> - `CategorySales` 백엔드는 `ratio` 반환 (프론트 타입에는 `ratio?` + `percentage?` 둘 다 있음)
-> - `SalesRecord` 백엔드는 `product` 중첩 객체 반환 (`product.name`, `product.category`), 프론트 `sales/page.tsx`에서 직접 매핑
+> **백엔드-프론트 타입 정렬 현황** (2026-03-18 수정 완료):
+> - `CategorySales` 백엔드 `percentage` → 프론트 `percentage: number` (required, ratio 필드 제거)
+> - `TopProduct` 백엔드 `name` → 프론트 `name: string` (product_name 필드 제거)
+> - `SalesRecord` 백엔드는 `product` 중첩 객체 반환, 프론트 타입에 `product?: { id, name, category, ... }` 추가됨
+> - `sales/page.tsx`는 `product?.name`, `product?.category`로 직접 접근
 
 ## 주요 기술 사항
 - 프론트엔드 인증 상태: Zustand (`authStore`) + localStorage 토큰 저장
@@ -232,6 +234,8 @@ promotionApi.delete(id)          // DELETE /api/promotion/{id}
 - 실제 환경 변수: `backend/.env` (`.env.example` 복사 후 작성)
 - CORS: 백엔드에서 `localhost:3000` 허용 설정됨
 - 업로드 지원 형식: `.xlsx`, `.xls`, `.csv`, 이미지 스크린샷 OCR (jpg, png, webp, bmp)
+- CI/CD: `.github/workflows/ci.yml` — frontend(lint+build) + backend(py_compile) 병렬 검사
+- 데모 시드 데이터: `backend/scripts/seed_data.py` — `python backend/scripts/seed_data.py` 실행 시 90일치 데이터 생성 (데모 계정: `demo@conveni.com` / `demo1234`)
 
 ## 남은 Mock 데이터
 - 없음 (전체 API 연동 완료)

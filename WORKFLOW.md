@@ -365,20 +365,20 @@ def process_screenshot(image_bytes) -> dict:
 ## 각 Phase별 검증 체크리스트
 
 ### Phase 1 완료 기준
-- [ ] `docker-compose up -d` → 4개 컨테이너 모두 running
-- [ ] `http://localhost:8000/docs` 접속 가능
-- [ ] `http://localhost:3000` 접속 가능
+- [x] `docker-compose up -d` → 4개 컨테이너 모두 running
+- [x] `http://localhost:8000/docs` 접속 가능
+- [x] `http://localhost:3000` 접속 가능
 
 ### Phase 2 완료 기준
-- [ ] `POST /api/auth/register` → 201 응답
-- [ ] `POST /api/auth/login` → JWT 토큰 반환
-- [ ] `.csv` 파일 업로드 → `GET /api/sales` 데이터 확인
-- [ ] `GET /api/analysis/daily` → 배열 반환
+- [x] `POST /api/auth/register` → 201 응답
+- [x] `POST /api/auth/login` → JWT 토큰 반환
+- [x] `.csv` 파일 업로드 → `GET /api/sales` 데이터 확인
+- [x] `GET /api/analysis/daily` → 배열 반환
 
 ### Phase 3 완료 기준
-- [ ] 로그인 → 대시보드 → 차트 4개 모두 렌더링
-- [ ] 파일 업로드 후 새로고침 → 대시보드 데이터 반영
-- [ ] `npm run build` 에러 없음
+- [x] 로그인 → 대시보드 → 차트 4개 모두 렌더링
+- [x] 파일 업로드 후 새로고침 → 대시보드 데이터 반영
+- [x] `npm run build` 에러 없음
 
 ### Phase 4 완료 기준
 - [x] 날씨 데이터 API 호출 → weather_data 테이블 저장
@@ -404,9 +404,9 @@ def process_screenshot(image_bytes) -> dict:
 
 ## 병렬 팀 구성 (Team Agents)
 
-### 현재 완료 상태 (2026-03-17)
+### 현재 완료 상태 (2026-03-18)
 
-#### Wave 0~5 완료 — 다음 세션은 Phase 6부터 시작
+#### 전체 완료 — main 브랜치 머지됨 (PR #3)
 
 | Wave / Phase | 작업 | 상태 |
 |---|---|---|
@@ -417,6 +417,7 @@ def process_screenshot(image_bytes) -> dict:
 | Wave 4 | /settings 이벤트 CRUD 연동, /analysis mock→API 전환, 날씨/이벤트 병합 | ✅ 완료 |
 | Phase 5 | OCR 파이프라인 (POS 스크린샷) | ✅ 완료 |
 | Phase 6 | 수요 예측, 폐기 알림, 행사 이익율 고도화 | ✅ 완료 |
+| QA/인프라 | 타입 불일치 수정, 빌드 Warning 제거, 시드 데이터, CI/CD | ✅ 완료 |
 
 #### Wave 3~4 완료 파일 목록 (2026-03-17 세션)
 **백엔드 신규:**
@@ -473,6 +474,24 @@ def process_screenshot(image_bytes) -> dict:
 - `types/index.ts` — Promotion, Prediction, WasteRisk 관련 타입 추가
 - `lib/api.ts` — promotionApi 객체 추가, analysisApi.getPredict/getWasteRisk 추가
 - `app/promotion/page.tsx` — mock 데이터 제거 → 실제 API 연동 (행사 계산기 + 폐기 위험 알림 탭)
+
+#### QA / 인프라 완료 파일 목록 (2026-03-18 세션)
+**타입 불일치 수정:**
+- `types/index.ts` — `TopProduct.name` (product_name → name), `CategorySales.percentage` required (ratio 제거), `SalesRecord.product?` 중첩 타입 추가
+- `app/analysis/page.tsx` — `c.ratio` → `c.percentage` 3곳, `p.product_name` → `p.name` 6곳 수정
+- `components/dashboard/TopProducts.tsx` — `product.product_name` → `product.name` 수정
+
+**빌드 Warning 제거:**
+- `components/upload/FileUploader.tsx` — useCallback 의존성 배열 수정 (validateFile 추가, allowedTypes/allowedExtensions useMemo 처리)
+- `components/upload/ScreenshotOCR.tsx` — `<img>` → `next/image <Image>` 교체
+- `store/authStore.ts` — 미사용 `removeToken` import 제거
+
+**인프라 신규:**
+- `.github/workflows/ci.yml` — frontend(lint+build) + backend(py_compile) 병렬 CI (Node.js 20, Python 3.11)
+- `backend/scripts/seed_data.py` — 90일치 데모 매출 데이터 생성 (데모 계정, 상품 20개, 시간대 가중치, 주말 보정)
+
+**Git:**
+- PR #3 머지 (feat/backend-api-and-frontend-integration → main), 브랜치 삭제
 
 ### Wave 0: Foundation (선행 순차)
 
