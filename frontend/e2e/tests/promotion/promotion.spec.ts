@@ -39,11 +39,12 @@ test.describe("행사 분석 페이지", () => {
       });
     });
 
-    await authedPage.goto("/promotion");
-    // 이력 API 응답 대기
-    await authedPage.waitForResponse((res) =>
+    // waitForResponse를 goto() 이전에 등록 (race condition 방지)
+    const historyResponse = authedPage.waitForResponse((res) =>
       res.url().includes("/api/promotion/history") && res.status() === 200
     );
+    await authedPage.goto("/promotion");
+    await historyResponse;
   });
 
   test("1. 행사 분석 페이지 접근 시 두 탭 버튼이 표시된다", async ({ authedPage }) => {
@@ -142,18 +143,17 @@ test.describe("행사 분석 페이지", () => {
     await authedPage.getByPlaceholder("1500").fill("1200");
     await authedPage.getByPlaceholder("100").fill("50");
 
-    const [calcResponse] = await Promise.all([
-      authedPage.waitForResponse((res) =>
-        res.url().includes("/api/promotion/calculate") && res.status() === 200
-      ),
-      authedPage.getByRole("button", { name: "계산하기" }).click(),
-    ]);
+    const calcResponsePromise = authedPage.waitForResponse((res) =>
+      res.url().includes("/api/promotion/calculate") && res.status() === 200
+    );
+    await authedPage.getByRole("button", { name: "계산하기" }).click();
+    const calcResponse = await calcResponsePromise;
 
     expect(calcResponse.status()).toBe(200);
 
-    // 결과 카드 표시 확인 (참여 / 미참여 비교)
-    await expect(authedPage.getByText("행사 참여")).toBeVisible();
-    await expect(authedPage.getByText("행사 미참여")).toBeVisible();
+    // 결과 카드 표시 확인 (참여 / 미참여 비교) - heading으로 특정
+    await expect(authedPage.getByRole("heading", { name: "행사 참여" })).toBeVisible();
+    await expect(authedPage.getByRole("heading", { name: "행사 미참여" })).toBeVisible();
 
     // 추천 메시지 표시 확인
     await expect(authedPage.getByText("행사 참여를 권장합니다.")).toBeVisible();
@@ -196,10 +196,11 @@ test.describe("행사 분석 페이지", () => {
       });
     });
 
-    await authedPage.reload();
-    await authedPage.waitForResponse((res) =>
+    const reloadHistRes = authedPage.waitForResponse((res) =>
       res.url().includes("/api/promotion/history") && res.status() === 200
     );
+    await authedPage.reload();
+    await reloadHistRes;
 
     // 이력 테이블 헤더 확인
     await expect(authedPage.getByRole("columnheader", { name: "행사명" })).toBeVisible();
@@ -211,27 +212,26 @@ test.describe("행사 분석 페이지", () => {
     await expect(authedPage.getByText("1+1 행사")).toBeVisible();
     await expect(authedPage.getByText("바나나맛 우유")).toBeVisible();
 
-    // 참여 배지 확인
-    await expect(authedPage.getByText("참여")).toBeVisible();
+    // 참여 배지 확인 (span 배지 요소로 특정)
+    await expect(authedPage.getByRole("cell").locator("span", { hasText: "참여" })).toBeVisible();
   });
 
   test("9. 폐기 위험 탭 클릭 시 폐기 위험 섹션이 표시된다", async ({ authedPage }) => {
     const wasteTab = authedPage.getByRole("button", { name: "폐기 위험 알림" });
 
-    const [wasteResponse] = await Promise.all([
-      authedPage.waitForResponse((res) =>
-        res.url().includes("/api/analysis/waste-risk") && res.status() === 200
-      ),
-      wasteTab.click(),
-    ]);
+    const wasteResponsePromise = authedPage.waitForResponse((res) =>
+      res.url().includes("/api/analysis/waste-risk") && res.status() === 200
+    );
+    await wasteTab.click();
+    const wasteResponse = await wasteResponsePromise;
 
     expect(wasteResponse.status()).toBe(200);
 
     // 탭 활성화 확인
     await expect(wasteTab).toHaveClass(/bg-blue-500/);
 
-    // 폐기 위험 섹션 표시 확인
-    await expect(authedPage.getByText("폐기 위험 알림")).toBeVisible();
+    // 폐기 위험 섹션 표시 확인 (heading으로 특정)
+    await expect(authedPage.getByRole("heading", { name: "폐기 위험 알림" })).toBeVisible();
 
     // 데이터 없을 때 안내 메시지 확인
     await expect(authedPage.getByText("현재 폐기 위험 상품이 없습니다.")).toBeVisible();
@@ -272,11 +272,12 @@ test.describe("행사 분석 페이지", () => {
       });
     });
 
-    // 폐기 위험 탭으로 전환
-    await authedPage.getByRole("button", { name: "폐기 위험 알림" }).click();
-    await authedPage.waitForResponse((res) =>
+    // 폐기 위험 탭으로 전환 (race condition 방지)
+    const wasteRiskResponse = authedPage.waitForResponse((res) =>
       res.url().includes("/api/analysis/waste-risk") && res.status() === 200
     );
+    await authedPage.getByRole("button", { name: "폐기 위험 알림" }).click();
+    await wasteRiskResponse;
 
     // 테이블 헤더 확인
     await expect(authedPage.getByRole("columnheader", { name: "상품명" })).toBeVisible();
@@ -296,11 +297,12 @@ test.describe("행사 분석 페이지", () => {
   });
 
   test("11. 폐기 위험 탭에서 계산기 탭으로 다시 돌아올 수 있다", async ({ authedPage }) => {
-    // 폐기 위험 탭으로 전환
-    await authedPage.getByRole("button", { name: "폐기 위험 알림" }).click();
-    await authedPage.waitForResponse((res) =>
+    // 폐기 위험 탭으로 전환 (race condition 방지)
+    const wasteRes11 = authedPage.waitForResponse((res) =>
       res.url().includes("/api/analysis/waste-risk") && res.status() === 200
     );
+    await authedPage.getByRole("button", { name: "폐기 위험 알림" }).click();
+    await wasteRes11;
 
     // 계산기 탭으로 복귀
     await authedPage.getByRole("button", { name: "행사 이익율 계산기" }).click();

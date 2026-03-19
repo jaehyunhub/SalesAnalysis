@@ -418,6 +418,7 @@ def process_screenshot(image_bytes) -> dict:
 | Phase 5 | OCR 파이프라인 (POS 스크린샷) | ✅ 완료 |
 | Phase 6 | 수요 예측, 폐기 알림, 행사 이익율 고도화 | ✅ 완료 |
 | QA/인프라 | 타입 불일치 수정, 빌드 Warning 제거, 시드 데이터, CI/CD | ✅ 완료 |
+| Phase 7 | Playwright E2E 테스트 63개 (7페이지 전체 커버), noValidate, 401 인터셉터 수정 | ✅ 완료 |
 
 #### Wave 3~4 완료 파일 목록 (2026-03-17 세션)
 **백엔드 신규:**
@@ -474,6 +475,26 @@ def process_screenshot(image_bytes) -> dict:
 - `types/index.ts` — Promotion, Prediction, WasteRisk 관련 타입 추가
 - `lib/api.ts` — promotionApi 객체 추가, analysisApi.getPredict/getWasteRisk 추가
 - `app/promotion/page.tsx` — mock 데이터 제거 → 실제 API 연동 (행사 계산기 + 폐기 위험 알림 탭)
+
+#### Phase 7: E2E 테스트 완료 파일 목록 (2026-03-19 세션)
+
+**신규:**
+- `frontend/e2e/test.md` — 63개 테스트 전체 문서화 (결과표, flaky 원인, API mock 전략)
+
+**수정:**
+- `frontend/playwright.config.ts` — timeout 90s, retries 1 (dev server 슬로우다운 대응)
+- `frontend/e2e/tests/auth/login.spec.ts` — waitForTimeout(500), 유효성 에러 timeout 강화
+- `frontend/e2e/tests/auth/register.spec.ts` — waitForTimeout(1000), 유효성 에러 timeout 10s로 증가
+- `frontend/e2e/tests/promotion/promotion.spec.ts` — strict mode violation 수정 (getByRole('heading'), getByRole('cell').locator('span'))
+- `frontend/e2e/tests/sales/sales.spec.ts` — 페이지네이션 버튼 `toBeVisible({ timeout: 30000 })`
+- `frontend/e2e/tests/upload/file-upload.spec.ts` — (flaky, retries로 처리)
+- `frontend/src/app/login/page.tsx` — 폼에 `noValidate` 추가 (react-hook-form 단독 유효성 처리)
+- `frontend/src/app/register/page.tsx` — 폼에 `noValidate` 추가
+- `frontend/src/lib/api.ts` — 401 인터셉터에서 auth 엔드포인트 제외 처리
+
+**테스트 결과**: 63개 전체 통과 (59 passed, 4 flaky → retry 통과, 0 failed)
+
+---
 
 #### QA / 인프라 완료 파일 목록 (2026-03-18 세션)
 **타입 불일치 수정:**

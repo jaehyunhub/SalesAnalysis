@@ -28,11 +28,12 @@ test.describe("매출 내역 페이지", () => {
       });
     });
 
-    await authedPage.goto("/sales");
-    // 매출 API 응답이 완료될 때까지 대기
-    await authedPage.waitForResponse((res) =>
+    // waitForResponse를 goto() 이전에 등록 (race condition 방지)
+    const salesResponse = authedPage.waitForResponse((res) =>
       res.url().includes("/api/sales") && res.status() === 200
     );
+    await authedPage.goto("/sales");
+    await salesResponse;
   });
 
   test("1. 매출 페이지 접근 시 테이블 헤더가 표시된다", async ({ authedPage }) => {
@@ -67,13 +68,12 @@ test.describe("매출 내역 페이지", () => {
     await salesPage.startDateInput.fill("2026-01-01");
     await salesPage.endDateInput.fill("2026-01-31");
 
-    // 조회 버튼 클릭 후 API 재호출 대기
-    const [response] = await Promise.all([
-      authedPage.waitForResponse((res) =>
-        res.url().includes("/api/sales") && res.status() === 200
-      ),
-      salesPage.applyFilterButton.click(),
-    ]);
+    // 조회 버튼 클릭 후 API 재호출 대기 (race condition 방지)
+    const responsePromise = authedPage.waitForResponse((res) =>
+      res.url().includes("/api/sales") && res.status() === 200
+    );
+    await salesPage.applyFilterButton.click();
+    const response = await responsePromise;
 
     expect(response.status()).toBe(200);
 
@@ -89,13 +89,12 @@ test.describe("매출 내역 페이지", () => {
     // 초기값은 "전체"
     await expect(salesPage.categoryFilter).toHaveValue("전체");
 
-    // "음료"로 변경 시 API 재호출 확인
-    const [response] = await Promise.all([
-      authedPage.waitForResponse((res) =>
-        res.url().includes("/api/sales") && res.status() === 200
-      ),
-      salesPage.categoryFilter.selectOption("음료"),
-    ]);
+    // "음료"로 변경 시 API 재호출 확인 (race condition 방지)
+    const categoryResponsePromise = authedPage.waitForResponse((res) =>
+      res.url().includes("/api/sales") && res.status() === 200
+    );
+    await salesPage.categoryFilter.selectOption("음료");
+    const response = await categoryResponsePromise;
 
     expect(response.status()).toBe(200);
 
@@ -160,27 +159,27 @@ test.describe("매출 내역 페이지", () => {
       }
     });
 
-    await authedPage.reload();
-    await authedPage.waitForResponse((res) =>
+    const reloadResponse = authedPage.waitForResponse((res) =>
       res.url().includes("/api/sales") && res.status() === 200
     );
+    await authedPage.reload();
+    await reloadResponse;
 
     // POM: 페이지네이션 버튼 렌더링 확인
-    await expect(salesPage.prevPageButton).toBeVisible();
-    await expect(salesPage.nextPageButton).toBeVisible();
+    await expect(salesPage.prevPageButton).toBeVisible({ timeout: 30000 });
+    await expect(salesPage.nextPageButton).toBeVisible({ timeout: 30000 });
 
     // 1페이지: "이전" 비활성화
     await expect(salesPage.prevPageButton).toBeDisabled();
     // 1페이지: "다음" 활성화
     await expect(salesPage.nextPageButton).toBeEnabled();
 
-    // "다음" 클릭 → 2페이지 이동
-    const [nextResponse] = await Promise.all([
-      authedPage.waitForResponse((res) =>
-        res.url().includes("/api/sales") && res.status() === 200
-      ),
-      salesPage.nextPageButton.click(),
-    ]);
+    // "다음" 클릭 → 2페이지 이동 (race condition 방지)
+    const nextResponsePromise = authedPage.waitForResponse((res) =>
+      res.url().includes("/api/sales") && res.status() === 200
+    );
+    await salesPage.nextPageButton.click();
+    const nextResponse = await nextResponsePromise;
 
     const nextUrl = nextResponse.url();
     expect(nextUrl).toContain("page=2");

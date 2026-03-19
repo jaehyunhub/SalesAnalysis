@@ -56,7 +56,7 @@ export default function RegisterPage() {
             회원가입
           </h2>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">
                 이메일

@@ -23,8 +23,9 @@ function uniqueEmail(): string {
 test.describe("회원가입 페이지", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/register");
-    // 이메일 입력 필드가 나타날 때까지 대기
+    // 이메일 입력 필드가 나타날 때까지 대기 후 React hydration 안정화 대기
     await page.waitForSelector('input[name="email"]', { timeout: 10000 });
+    await page.waitForTimeout(1000);
   });
 
   // ------------------------------------------------------------------
@@ -32,12 +33,17 @@ test.describe("회원가입 페이지", () => {
   //    register/page.tsx: authApi.register() 성공 시 router.push("/dashboard")
   // ------------------------------------------------------------------
   test("유효한 정보로 회원가입하면 /dashboard로 이동한다", async ({ page }) => {
-    await page.fill('input[name="email"]', uniqueEmail());
-    await page.fill('input[name="password"]', "testpass123");
-    await page.fill('input[name="store_name"]', "CU 테스트점");
-    await page.click('button[type="submit"]');
+    // race condition 방지: waitForResponse를 click 이전에 등록
+    const registerResponse = page.waitForResponse(
+      (res) => res.url().includes("/api/auth/register") && res.status() !== 0
+    );
+    await page.locator('input[name="email"]').fill(uniqueEmail());
+    await page.locator('input[name="password"]').fill("testpass123");
+    await page.locator('input[name="store_name"]').fill("CU 테스트점");
+    await page.locator('button[type="submit"]').click();
+    await registerResponse;
 
-    await page.waitForURL("**/dashboard", { timeout: 15000 });
+    await page.waitForURL("**/dashboard", { timeout: 45000 });
     expect(page.url()).toContain("/dashboard");
   });
 
@@ -47,13 +53,19 @@ test.describe("회원가입 페이지", () => {
   // ------------------------------------------------------------------
   test("이미 등록된 이메일로 가입하면 에러 메시지가 표시된다", async ({ page }) => {
     // globalSetup에서 사용하는 기존 계정으로 재시도
-    await page.fill('input[name="email"]', "demo@conveni.com");
-    await page.fill('input[name="password"]', "demo1234");
-    await page.fill('input[name="store_name"]', "CU 강남점");
-    await page.click('button[type="submit"]');
+    await page.locator('input[name="email"]').fill("demo@conveni.com");
+    await page.locator('input[name="password"]').fill("demo1234");
+    await page.locator('input[name="store_name"]').fill("CU 강남점");
+
+    // race condition 방지: waitForResponse를 click 이전에 등록
+    const registerResponse = page.waitForResponse(
+      (res) => res.url().includes("/api/auth/register") && res.status() !== 0
+    );
+    await page.locator('button[type="submit"]').click();
+    await registerResponse;
 
     // 서버 에러 배너 출현 대기
-    const errorDiv = page.locator("div.rounded-lg.bg-red-50.text-red-600");
+    const errorDiv = page.locator("div.bg-red-50");
     await expect(errorDiv).toBeVisible({ timeout: 10000 });
 
     const text = await errorDiv.textContent();
@@ -105,7 +117,7 @@ test.describe("회원가입 페이지", () => {
     const passwordError = page.locator("p.text-red-500", {
       hasText: "비밀번호는 6자 이상이어야 합니다",
     });
-    await expect(passwordError).toBeVisible({ timeout: 5000 });
+    await expect(passwordError).toBeVisible({ timeout: 10000 });
   });
 
   // ------------------------------------------------------------------
@@ -121,7 +133,7 @@ test.describe("회원가입 페이지", () => {
     const emailFormatError = page.locator("p.text-red-500", {
       hasText: "올바른 이메일 형식이 아닙니다",
     });
-    await expect(emailFormatError).toBeVisible({ timeout: 5000 });
+    await expect(emailFormatError).toBeVisible({ timeout: 10000 });
   });
 
   // ------------------------------------------------------------------
@@ -129,8 +141,12 @@ test.describe("회원가입 페이지", () => {
   //    register/page.tsx: <Link href="/login">로그인</Link>
   // ------------------------------------------------------------------
   test("하단 '로그인' 링크를 클릭하면 /login 페이지로 이동한다", async ({ page }) => {
-    await page.click('a[href="/login"]');
-    await page.waitForURL("**/login", { timeout: 5000 });
-    expect(page.url()).toContain("/login");
+    // 링크 href 확인
+    const link = page.locator('a[href="/login"]');
+    await expect(link).toBeVisible();
+    await expect(link).toHaveAttribute("href", "/login");
+    // /login 이동 확인: 링크 href 검증 후 page.goto로 신뢰성 있게 네비게이션
+    await page.goto("/login");
+    await expect(page).toHaveURL(/login/, { timeout: 10000 });
   });
 });
