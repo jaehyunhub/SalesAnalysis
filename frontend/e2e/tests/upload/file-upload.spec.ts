@@ -31,11 +31,12 @@ test.describe("파일 업로드 페이지", () => {
       });
     });
 
-    await authedPage.goto("/upload");
-    // 이력 API 응답 대기
-    await authedPage.waitForResponse((res) =>
+    // waitForResponse를 goto() 이전에 등록 (race condition 방지)
+    const historyResponse = authedPage.waitForResponse((res) =>
       res.url().includes("/api/upload/history") && res.status() === 200
     );
+    await authedPage.goto("/upload");
+    await historyResponse;
   });
 
   test("1. 업로드 페이지 접근 시 두 탭 버튼이 모두 표시된다", async ({ authedPage }) => {
@@ -97,7 +98,7 @@ test.describe("파일 업로드 페이지", () => {
     const uploadPage = new UploadPage(authedPage);
 
     // 섹션 제목
-    await expect(authedPage.getByText("업로드 이력")).toBeVisible();
+    await expect(authedPage.getByRole("heading", { name: "업로드 이력" })).toBeVisible();
 
     // POM: 이력 테이블이 존재하는지 확인
     await expect(uploadPage.historyTable).toBeVisible();
@@ -156,10 +157,11 @@ test.describe("파일 업로드 페이지", () => {
       });
     });
 
-    await authedPage.reload();
-    await authedPage.waitForResponse((res) =>
+    const reloadHistoryResponse = authedPage.waitForResponse((res) =>
       res.url().includes("/api/upload/history") && res.status() === 200
     );
+    await authedPage.reload();
+    await reloadHistoryResponse;
 
     // POM: 3개의 이력 행이 렌더링되었는지 확인
     await uploadPage.waitForHistoryRows(3);

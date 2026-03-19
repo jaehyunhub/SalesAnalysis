@@ -24,6 +24,15 @@ npm run build    # 프로덕션 빌드
 npm run lint     # ESLint 실행
 ```
 
+### E2E 테스트 (`frontend/`)
+```bash
+npx playwright test               # 전체 E2E 테스트 실행 (63개)
+npx playwright test e2e/tests/auth/  # 특정 디렉토리만 실행
+npx playwright show-report        # HTML 리포트 확인
+npx playwright test --ui          # 대화형 UI 모드
+```
+> **사전 조건**: 백엔드(`:8000`) + PostgreSQL 실행 중이어야 함. Next.js dev server는 자동 시작.
+
 ### 백엔드 (`backend/`)
 ```bash
 uvicorn app.main:app --reload --port 8000   # 개발 서버 :8000
@@ -236,6 +245,9 @@ promotionApi.delete(id)          // DELETE /api/promotion/{id}
 - 업로드 지원 형식: `.xlsx`, `.xls`, `.csv`, 이미지 스크린샷 OCR (jpg, png, webp, bmp)
 - CI/CD: `.github/workflows/ci.yml` — frontend(lint+build) + backend(py_compile) 병렬 검사
 - 데모 시드 데이터: `backend/scripts/seed_data.py` — `python backend/scripts/seed_data.py` 실행 시 90일치 데이터 생성 (데모 계정: `demo@conveni.com` / `demo1234`)
+- E2E 테스트: `frontend/e2e/` — Playwright 기반 63개 테스트 (7개 페이지 전체 커버). 결과 문서: `frontend/e2e/test.md`
+- 폼 `noValidate`: `login/page.tsx`, `register/page.tsx`에 `noValidate` 속성 추가 → 브라우저 기본 유효성 검사 비활성화, react-hook-form 단독 처리
+- API 401 인터셉터: auth 엔드포인트(`/api/auth/login`, `/api/auth/register`)의 401은 `/login` 리다이렉트 제외 처리
 
 ## 남은 Mock 데이터
 - 없음 (전체 API 연동 완료)

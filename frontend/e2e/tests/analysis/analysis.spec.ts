@@ -78,11 +78,12 @@ async function mockAnalysisApis(authedPage: import("@playwright/test").Page) {
 test.describe("분석 페이지", () => {
   test.beforeEach(async ({ authedPage }) => {
     await mockAnalysisApis(authedPage);
-    await authedPage.goto("/analysis");
-    // 월별 탭 초기 로드 API 대기
-    await authedPage.waitForResponse((res) =>
+    // waitForResponse를 goto() 이전에 등록 (race condition 방지)
+    const monthlyResponse = authedPage.waitForResponse((res) =>
       res.url().includes("/api/analysis/monthly") && res.status() === 200
     );
+    await authedPage.goto("/analysis");
+    await monthlyResponse;
   });
 
   test("1. 분석 페이지 접근 시 탭 바의 세 탭이 모두 표시된다", async ({ authedPage }) => {
@@ -110,12 +111,11 @@ test.describe("분석 페이지", () => {
   test("4. 주별 탭 클릭 시 해당 탭이 활성화된다", async ({ authedPage }) => {
     const weeklyBtn = authedPage.getByRole("button", { name: "주별" });
 
-    await Promise.all([
-      authedPage.waitForResponse((res) =>
-        res.url().includes("/api/analysis/daily") && res.status() === 200
-      ),
-      weeklyBtn.click(),
-    ]);
+    const weeklyApiRes = authedPage.waitForResponse((res) =>
+      res.url().includes("/api/analysis/daily") && res.status() === 200
+    );
+    await weeklyBtn.click();
+    await weeklyApiRes;
 
     await expect(weeklyBtn).toHaveClass(/bg-blue-500/);
     await expect(weeklyBtn).toHaveClass(/text-white/);
@@ -127,12 +127,11 @@ test.describe("분석 페이지", () => {
   test("5. 일별 탭 클릭 시 날짜 선택기가 표시된다", async ({ authedPage }) => {
     const dailyBtn = authedPage.getByRole("button", { name: "일별" });
 
-    await Promise.all([
-      authedPage.waitForResponse((res) =>
-        res.url().includes("/api/analysis/hourly") && res.status() === 200
-      ),
-      dailyBtn.click(),
-    ]);
+    const hourlyApiRes = authedPage.waitForResponse((res) =>
+      res.url().includes("/api/analysis/hourly") && res.status() === 200
+    );
+    await dailyBtn.click();
+    await hourlyApiRes;
 
     await expect(dailyBtn).toHaveClass(/bg-blue-500/);
 
@@ -147,24 +146,27 @@ test.describe("분석 페이지", () => {
 
   test("6. 탭 전환이 월별 → 주별 → 일별 순서로 모두 가능하다", async ({ authedPage }) => {
     // 월별 → 주별
-    await authedPage.getByRole("button", { name: "주별" }).click();
-    await authedPage.waitForResponse((res) =>
+    const weeklyRes = authedPage.waitForResponse((res) =>
       res.url().includes("/api/analysis/daily") && res.status() === 200
     );
+    await authedPage.getByRole("button", { name: "주별" }).click();
+    await weeklyRes;
     await expect(authedPage.getByRole("button", { name: "주별" })).toHaveClass(/bg-blue-500/);
 
     // 주별 → 일별
-    await authedPage.getByRole("button", { name: "일별" }).click();
-    await authedPage.waitForResponse((res) =>
+    const hourlyRes = authedPage.waitForResponse((res) =>
       res.url().includes("/api/analysis/hourly") && res.status() === 200
     );
+    await authedPage.getByRole("button", { name: "일별" }).click();
+    await hourlyRes;
     await expect(authedPage.getByRole("button", { name: "일별" })).toHaveClass(/bg-blue-500/);
 
     // 일별 → 월별
-    await authedPage.getByRole("button", { name: "월별" }).click();
-    await authedPage.waitForResponse((res) =>
+    const monthlyRes2 = authedPage.waitForResponse((res) =>
       res.url().includes("/api/analysis/monthly") && res.status() === 200
     );
+    await authedPage.getByRole("button", { name: "월별" }).click();
+    await monthlyRes2;
     await expect(authedPage.getByRole("button", { name: "월별" })).toHaveClass(/bg-blue-500/);
   });
 
@@ -184,10 +186,11 @@ test.describe("분석 페이지", () => {
       });
     });
 
-    await authedPage.reload();
-    await authedPage.waitForResponse((res) =>
+    const reloadRes7 = authedPage.waitForResponse((res) =>
       res.url().includes("/api/analysis/monthly") && res.status() === 200
     );
+    await authedPage.reload();
+    await reloadRes7;
 
     // 연도 텍스트 표시 확인
     await expect(authedPage.getByText(`${currentYear}년`)).toBeVisible();
@@ -228,23 +231,23 @@ test.describe("분석 페이지", () => {
       });
     });
 
-    await authedPage.reload();
-    await authedPage.waitForResponse((res) =>
+    const reloadRes8 = authedPage.waitForResponse((res) =>
       res.url().includes("/api/analysis/monthly") && res.status() === 200
     );
+    await authedPage.reload();
+    await reloadRes8;
 
     // 이전 연도 버튼 클릭
-    const [prevYearResponse] = await Promise.all([
-      authedPage.waitForResponse((res) =>
-        res.url().includes("/api/analysis/monthly") && res.status() === 200
-      ),
-      authedPage.getByRole("button", { name: String(currentYear - 1) }).click(),
-    ]);
+    const prevYearResponsePromise = authedPage.waitForResponse((res) =>
+      res.url().includes("/api/analysis/monthly") && res.status() === 200
+    );
+    await authedPage.getByRole("button", { name: String(currentYear - 1) }).click();
+    const prevYearApiRes = await prevYearResponsePromise;
 
-    expect(prevYearResponse.status()).toBe(200);
+    expect(prevYearApiRes.status()).toBe(200);
 
     // URL에 이전 연도 파라미터 포함 확인
-    const url = prevYearResponse.url();
+    const url = prevYearApiRes.url();
     expect(url).toContain(`year=${currentYear - 1}`);
   });
 });

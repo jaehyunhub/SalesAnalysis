@@ -41,11 +41,13 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response interceptor: handle 401
+// Response interceptor: handle 401 (auth 엔드포인트 제외)
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const url = error.config?.url ?? "";
+    const isAuthEndpoint = url.includes("/api/auth/login") || url.includes("/api/auth/register");
+    if (error.response?.status === 401 && !isAuthEndpoint) {
       clearAuth();
       if (typeof window !== "undefined") {
         window.location.href = "/login";

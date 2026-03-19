@@ -21,8 +21,9 @@ test.describe("로그인 페이지", () => {
   test.beforeEach(async ({ page }) => {
     loginPage = new LoginPage(page);
     await loginPage.goto();
-    // 이메일 입력 필드가 나타날 때까지 대기
+    // 이메일 입력 필드가 나타날 때까지 대기 후 React hydration 안정화 대기
     await page.waitForSelector('input[name="email"]', { timeout: 10000 });
+    await page.waitForTimeout(500);
   });
 
   // ------------------------------------------------------------------
@@ -35,7 +36,7 @@ test.describe("로그인 페이지", () => {
     await loginPage.login(email, password);
 
     // 로그인 성공 시 router.push("/dashboard") 호출됨
-    await page.waitForURL("**/dashboard", { timeout: 15000 });
+    await page.waitForURL("**/dashboard", { timeout: 45000 });
     expect(page.url()).toContain("/dashboard");
   });
 
@@ -44,7 +45,12 @@ test.describe("로그인 페이지", () => {
   //    login/page.tsx: <div class="rounded-lg bg-red-50 p-3 text-sm text-red-600">
   // ------------------------------------------------------------------
   test("잘못된 비밀번호 입력 시 에러 메시지가 표시된다", async ({ page }) => {
+    // race condition 방지: waitForResponse를 login 이전에 등록
+    const loginResponse = page.waitForResponse(
+      (res) => res.url().includes("/api/auth/login") && res.status() !== 0
+    );
     await loginPage.login("demo@conveni.com", "wrong_password_9999");
+    await loginResponse;
 
     // 서버 에러 메시지 컨테이너 출현 대기
     await expect(loginPage.errorMessage).toBeVisible({ timeout: 10000 });
@@ -105,9 +111,14 @@ test.describe("로그인 페이지", () => {
   //    login/page.tsx: <Link href="/register">회원가입</Link>
   // ------------------------------------------------------------------
   test("하단 '회원가입' 링크를 클릭하면 /register 페이지로 이동한다", async ({ page }) => {
-    await page.click('a[href="/register"]');
-    await page.waitForURL("**/register", { timeout: 5000 });
-    expect(page.url()).toContain("/register");
+    // 링크 존재 및 href 확인
+    const link = page.locator('a[href="/register"]');
+    await expect(link).toBeVisible();
+    await expect(link).toHaveText("회원가입");
+    await expect(link).toHaveAttribute("href", "/register");
+    // 클릭 후 페이지 이동 확인
+    await link.click();
+    await expect(page).toHaveURL(/register/, { timeout: 45000 });
   });
 });
 

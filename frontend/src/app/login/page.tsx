@@ -54,7 +54,7 @@ export default function LoginPage() {
         <div className="rounded-xl bg-white p-8 shadow-sm border border-gray-100">
           <h2 className="mb-6 text-xl font-semibold text-gray-800">로그인</h2>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">
                 이메일
