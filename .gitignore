@@ -32,18 +32,13 @@ npm-debug.log*
 .DS_Store
 Thumbs.db
 
-# 테스트 스크린샷 (임시)
-dashboard.png
-dashboard-weekly.png
-analysis-monthly.png
-analysis-weekly.png
-analysis-daily.png
+# 임시 스크린샷
 *-temp.png
 weekly-temp.png
 monthly-temp.png
 
 # Claude Code 내부 설정
-.claude/
+.claude/settings.local.json
 .playwright-mcp/
 
 # 업로드 임시 파일
